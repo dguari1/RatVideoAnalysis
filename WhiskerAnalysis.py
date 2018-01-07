@@ -13,9 +13,13 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 
-from ImageViewerandProcess import ImageViewer
+from ImageViewer import ImageViewer
 
-
+class QHLine(QtWidgets.QFrame):
+    def __init__(self):
+        super(QHLine, self).__init__()
+        self.setFrameShape(QtWidgets.QFrame.HLine)
+        self.setFrameShadow(QtWidgets.QFrame.Sunken)
 
 class MainWindow(QtWidgets.QWidget):
     
@@ -24,10 +28,12 @@ class MainWindow(QtWidgets.QWidget):
         #self.setGeometry(5,60,700,500)
         self.setWindowTitle('Whisker Analysis')
         scriptDir = os.getcwd()#os.path.dirname(os.path.realpath(sys.argv[0]))
-        self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'face_icon.ico'))
-        
+        print(scriptDir)
+        self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'face_icon.ico'))
+        self.background_color = self.palette().color(QtGui.QPalette.Background)
         #initialize the User Interface
         self.initUI()
+        
         
     def initUI(self):
         #local directory
@@ -35,61 +41,79 @@ class MainWindow(QtWidgets.QWidget):
 
         #image
         #read the image from file        
-        img_Qt = QtGui.QImage(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'face.png')
+        img_Qt = QtGui.QImage(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'face2.png')
         img_show = QtGui.QPixmap.fromImage(img_Qt)
         
         #the image will be displayed in the custom ImageViewer
         self.displayImage = ImageViewer()      
         self.displayImage.setPhoto(img_show)    
         
-        #toolbar         
-        LoadAction = QtWidgets.QAction('Select Images Folder', self)
-        LoadAction.setIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'face.png'))
-        #LoadAction.triggered.connect(self.load_file)
+       
         
-        FaceCenterAction = QtWidgets.QAction('Find Face Center', self)
-        FaceCenterAction.setIcon( QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'mid-face.png'))
-        #FaceCenterAction.triggered.connect(self.CreatePatient)
+        MenuBar = QtWidgets.QMenuBar(self)
+        MenuBar.setStyleSheet("font-size:18px;")
+        self.setStyleSheet("""
+                           QMenuBar {
+                           font-size:18px;
+                           background : transparent;
+                           }
+                           """)       
+        FileMenu = MenuBar.addMenu("File")
+        LoadAction = FileMenu.addAction("Select Folder")
+        LoadAction.setShortcut("Ctrl+F")
+        LoadAction.triggered.connect(self.load_file)
         
-        
-        RigthROIAction = QtWidgets.QAction('Find Right Side ROI', self)
-        RigthROIAction.setIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'find_right_ROI.png'))
-        #RigthROIAction.triggered.connect(self.displayImage.show_entire_image)
-        
-        LeftROIAction = QtWidgets.QAction('Find Left Side ROI', self)
-        LeftROIAction.setIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'find_left_ROI.png'))
-        #LeftROIAction.triggered.connect(self.displayImage.show_entire_image)
-
-                
-        ExitAction = QtWidgets.QAction('Close', self)
-        ExitAction.setIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'close.png'))
+        ExitAction = FileMenu.addAction("Quit")
+        ExitAction.setShortcut("Ctrl+Q")
         ExitAction.triggered.connect(self.close_app)
-                
         
-        #create the toolbar and add the actions 
-        self.toolBar = QtWidgets.QToolBar(self)
-        self.toolBar.addActions((LoadAction, FaceCenterAction, RigthROIAction,
-                                 LeftROIAction,ExitAction))
         
-        #set the size of each icon to 50x50
-        self.toolBar.setIconSize(QtCore.QSize(50,50))
+        ImageMenu = MenuBar.addMenu("Image")
         
-        for action in self.toolBar.actions():
-            widget = self.toolBar.widgetForAction(action)
-            widget.setFixedSize(50, 50)
-           
-        self.toolBar.setMinimumSize(self.toolBar.sizeHint())
-        self.toolBar.setStyleSheet('QToolBar{spacing:5px;}')
+        ThresholdAction = ImageMenu.addAction("Define Threshold")
+        ThresholdAction.setShortcut("Ctrl+T")
+        
+        RotateAction = ImageMenu.addAction("Rotate Image")
+        RotateAction.setShortcut("Ctrl+U")
+
+        FaceCenterAction = ImageMenu.addAction("Define Face Center")
+        FaceCenterAction.setShortcut("Ctrl+C")
+        
+        RigthROIAction = ImageMenu.addAction("Define Right ROI")
+        RigthROIAction.setShortcut("Ctrl+R")
+        
+        LeftROIAction = ImageMenu.addAction("Define Left ROI")        
+        LeftROIAction.setShortcut("Ctrl+L")
+        
+        VideoMenu = MenuBar.addMenu("Video")
+        ForwardAction = VideoMenu.addAction("Move Forvward")
+        ForwardAction.setShortcut("Shift+F")
+        
+        BackwardsAction = VideoMenu.addAction("Move Backwards")
+        BackwardsAction.setShortcut("Shift+A")
+        
+        
+        ProcessMenu = MenuBar.addMenu("Process")
+        
+        NumProcessorsAction = ProcessMenu.addAction("Number of Processor")
+        NumProcessorsAction.setShortcut("Ctrl+P")
+        
+        ProcessAction = ProcessMenu.addAction("Start Tracking")
+        ProcessAction.setShortcut("Ctrl+S")
+       
+        
+        
 
         
         #the main window consist of the toolbar and the ImageViewer
         layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(self.toolBar)
+        layout.addWidget(MenuBar)
+        layout.addWidget(QHLine())
         layout.addWidget(self.displayImage)
         self.setLayout(layout)
         
 
-        
+        self.resize(800, 650)
         self.show()
         
         
@@ -118,17 +142,27 @@ class MainWindow(QtWidgets.QWidget):
                 self,'Load Image',
                 '',"Image files (*.png *.jpg *.jpeg *.tif *.tiff *.PNG *.JPG *.JPEG *.TIF *.TIFF)")
         
-        #if not name:
-        #    pass
-        #else:
+        if not name:
+            pass
+        else:
+            temp_image  = cv2.imread(name)
+            image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+            height, width, channel = image.shape
+            bytesPerLine = 3 * width
+            img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
+            img_show = QtGui.QPixmap.fromImage(img_Qt)
+            
+            #show the photo
+            self.displayImage.setPhoto(img_show)
             
             
     def close_app(self):  
         
+        
         #ask is the user really wants to close the app
         choice = QtWidgets.QMessageBox.question(self, 'Message', 
                             'Do you want to exit?', QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-
+        
         if choice == QtWidgets.QMessageBox.Yes :
             self.close()
             app.exec_()
