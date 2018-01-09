@@ -13,6 +13,9 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 
+#add an option to load and save parameters
+
+
 from ImageViewer import ImageViewer
 
 class QHLine(QtWidgets.QFrame):
