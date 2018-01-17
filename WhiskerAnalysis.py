@@ -18,6 +18,10 @@ from PyQt5 import QtCore
 
 from ImageViewer import ImageViewer
 
+from threshold import ThresholdWindow
+
+
+
 class QHLine(QtWidgets.QFrame):
     def __init__(self):
         super(QHLine, self).__init__()
@@ -36,6 +40,10 @@ class MainWindow(QtWidgets.QWidget):
         self.background_color = self.palette().color(QtGui.QPalette.Background)
         #initialize the User Interface
         self.initUI()
+        
+        self._threshold = None #threshold for image processing 
+        
+        self._current_Image = None #this variable stores the image that is being displayed in the screen 
         
         
     def initUI(self):
@@ -75,6 +83,7 @@ class MainWindow(QtWidgets.QWidget):
         
         ThresholdAction = ImageMenu.addAction("Define Threshold")
         ThresholdAction.setShortcut("Ctrl+T")
+        ThresholdAction.triggered.connect(self.threhold_function)
         
         RotateAction = ImageMenu.addAction("Rotate Image")
         RotateAction.setShortcut("Ctrl+U")
@@ -150,6 +159,7 @@ class MainWindow(QtWidgets.QWidget):
         else:
             temp_image  = cv2.imread(name)
             image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+            self._current_Image = image
             height, width, channel = image.shape
             bytesPerLine = 3 * width
             img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
@@ -157,7 +167,66 @@ class MainWindow(QtWidgets.QWidget):
             
             #show the photo
             self.displayImage.setPhoto(img_show)
+    
+
+    def threhold_function(self):
+        
+        if self._current_Image is not None:
             
+            if self._threshold is None:
+                temp = self._current_Image.copy()
+                temp = cv2.cvtColor(temp, cv2.COLOR_BGR2GRAY)
+                hist = cv2.calcHist([temp],[0],None,[256],[0,256]) 
+                elem = np.argmax(hist)
+                if elem>5:
+                    elem=elem-5           
+                
+                self.th = ThresholdWindow(elem)
+                self.th.Threshold_value.connect(self.test_threshold)
+                self.th.exec_()
+                if self.th.Canceled is False:
+                    #update threshold 
+                    self._threshold = self.th.threshold 
+                
+            else:
+                self.th = ThresholdWindow(self._threshold)
+                self.th.exec_()
+                if self.th.Canceled is False:
+                    #update threshold 
+                    self._threshold = self.th.threshold 
+                    
+        
+            if self._threshold is not None:
+                if self.th.Canceled is False:                    
+                    #update image
+                    image = self._current_Image.copy()
+                    image[image>self._threshold] = 255
+                    #image = 0.299*image[:,:,0]+0.587*image[:,:,1]+0.114*image[:,:,2]
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+                    self._current_Image = image.copy()
+                    height, width = image.shape
+                    bytesPerLine = 1 * width
+                    img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+                    img_show = QtGui.QPixmap.fromImage(img_Qt)
+                    
+                    #show the photo
+                    self.displayImage.setPhoto(img_show)
+                    
+                    
+    def test_threshold(self, threshold):
+        image = self._current_Image.copy()
+        image[image>threshold] = 255
+        #image = 0.299*image[:,:,0]+0.587*image[:,:,1]+0.114*image[:,:,2]
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        height, width = image.shape
+        bytesPerLine = 1 * width
+        img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+        img_show = QtGui.QPixmap.fromImage(img_Qt)
+        
+        #show the photo
+        self.displayImage.setPhoto(img_show)
+        
             
     def close_app(self):  
         
