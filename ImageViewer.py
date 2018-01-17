@@ -38,6 +38,16 @@ class ImageViewer(QtWidgets.QGraphicsView):
         self.setDragMode(QtWidgets.QGraphicsView.RubberBandDrag)
         self.setMouseTracking(True)
         
+        
+        self._isFaceCenter = False #variable that indicates if the face center will be localized
+        self._FaceCenter = None #this variable defines the point selected as the face center
+        
+        self._isRightROI = False #variable that indicates if the right ROI will be localized 
+        self._RightROI = None #variable that stores the points selected as right ROI
+        self._isLeftROI = False #variable that indicates if the left ROI will be localized 
+        self._LeftROI = None #variable that stores the points selected as left ROI
+        
+        self._temp_storage = [] #this is a variable that is used to store temporary data... :)
 
         
     def setPhoto(self, pixmap = None):
@@ -89,40 +99,108 @@ class ImageViewer(QtWidgets.QGraphicsView):
             elif self._zoom <= 0:
                 self._zoom = 0
                 self.fitInView()
-                
-                
+   
+
+                   
     def mousePressEvent(self, event):
-        #this function takes care of lifting (if RightClick) and relocating (if
-        #a point is lifted and LeftClick) landmarks. It also verifies if the 
-        #user wants to manually modify the position of the iris. In that case,
-        #it opens up a new window showing only the eye (left or right) where 
-        #the user can select four points around the iris
+        
+        
+        
         if not self._photo.pixmap().isNull():
-            scenePos = self.mapToScene(event.pos())
-            if event.button() == QtCore.Qt.RightButton:                                
-                #if the user RightClick and no point is lifted then verify if 
-                #the position of the click is close to one of the landmarks
-                x_mousePos = scenePos.toPoint().x()
-                y_mousePos = scenePos.toPoint().y()
-                mousePos=np.array([(x_mousePos, y_mousePos)])                   
-                distance=cdist(np.append(self._shape,
-                                [[self._righteye[0],self._righteye[1]],
-                                [self._lefteye[0],self._lefteye[1]]], axis=0)
-                                , mousePos)
-                distance=distance[:,0]
-                PointToModify = [i for i, j in enumerate(distance) if j <=3 ]
-                if PointToModify:
-                    #action
-                    print('hola')
+            
+            rect = QtCore.QRectF(self._photo.pixmap().rect())
+            view_width=rect.width()
+            view_height=rect.height()
+            
+            if self._isFaceCenter is True: #user is going to select the center of the face 
+                #remove the Drag  and change cursor
+                self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                self.setCursor(QtGui.QCursor(QtCore.Qt.SizeAllCursor))
+                if event.button() == QtCore.Qt.LeftButton: #this will only works with left click
                     
-                self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
-                self.set_update_photo()  
+                    scenePos = self.mapToScene(event.pos()) #take the position of the mouse
+                    x_mousePos = scenePos.toPoint().x()
+                    y_mousePos = scenePos.toPoint().y()
+                    self._FaceCenter = [x_mousePos, y_mousePos]
+                    
+                    
+                    self.draw_line(0,y_mousePos,view_width,y_mousePos)
+                    self.draw_line(x_mousePos,0,x_mousePos,view_height)
+                    
+            elif self._isRightROI is True: #user if going to input the points for the right ROI
+                    
+                if event.button() == QtCore.Qt.LeftButton: #this will only works with left click
+                    #remove the Drag  and change cursor
+                    self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+                    
+                    
+                    scenePos = self.mapToScene(event.pos()) #take the position of the mouse
+                    x_mousePos = scenePos.toPoint().x()
+                    y_mousePos = scenePos.toPoint().y()
+
+                    if x_mousePos >= 0 and x_mousePos <= self._FaceCenter[0]:
+                        self._temp_storage.append((x_mousePos,y_mousePos))
+                        self.draw_circle([x_mousePos,y_mousePos,3])
                 
-               
+                elif event.button() == QtCore.Qt.RightButton: #on right button just finish
                     
+                    self._isRightROI = False
+                    self._RightROI = self._temp_storage
+                    if len(self._temp_storage) > 2:
+                        self.draw_polygon(self._temp_storage)
+          
+            elif self._isLeftROI is True: #user if going to input the points for the left ROI
+                
+                if event.button() == QtCore.Qt.LeftButton: #this will only works with left click
+                    #remove the Drag  and change cursor
+                    self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+                    
+                    
+                    scenePos = self.mapToScene(event.pos()) #take the position of the mouse
+                    x_mousePos = scenePos.toPoint().x()
+                    y_mousePos = scenePos.toPoint().y()
+
+                    if  x_mousePos >= self._FaceCenter[0] and x_mousePos <= view_width:
+                        self._temp_storage.append((x_mousePos,y_mousePos))
+                        self.draw_circle([x_mousePos,y_mousePos,3])
+                
+                elif event.button() == QtCore.Qt.RightButton: #on right button just finish
+                    
+                    self._isLeftROI = False
+                    self._LeftROI = self._temp_storage
+                    if len(self._temp_storage) > 2:
+                        self.draw_polygon(self._temp_storage)
+                
+                    
+                    
+                    
+#                scenePos = self.mapToScene(event.pos())
+#                if event.button() == QtCore.Qt.RightButton:                                
+#                    #if the user RightClick and no point is lifted then verify if 
+#                    #the position of the click is close to one of the landmarks
+#                    x_mousePos = scenePos.toPoint().x()
+#                    y_mousePos = scenePos.toPoint().y()
+#                    mousePos=np.array([(x_mousePos, y_mousePos)])                   
+#                    distance=cdist(np.append(self._shape,
+#                                    [[self._righteye[0],self._righteye[1]],
+#                                    [self._lefteye[0],self._lefteye[1]]], axis=0)
+#                                    , mousePos)
+#                    distance=distance[:,0]
+#                    PointToModify = [i for i, j in enumerate(distance) if j <=3 ]
+#                    if PointToModify:
+#                        #action
+#                        print('hola')
+#                        
+#                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+#                    self.set_update_photo()  
+                    
+                   
+                        
             elif event.button() == QtCore.Qt.LeftButton:
-                
-                self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
+                    
+                    self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
                     
                             
                             
@@ -130,6 +208,13 @@ class ImageViewer(QtWidgets.QGraphicsView):
             
     def mouseReleaseEvent(self, event):     
         #this function defines what happens when you release the mouse click 
+        if self._isFaceCenter is True:
+            self._isFaceCenter = False
+            self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        elif self._isRightROI is True:
+            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+            self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        
         
 
         QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
@@ -143,19 +228,65 @@ class ImageViewer(QtWidgets.QGraphicsView):
 
     
     def mouseMoveEvent(self, event):
-        #this function takes care of the pan (move around the photo) and draggin of the eyes
+        #this function takes care of the pan (move around the photo) and draggin face center line
+        if not self._photo.pixmap().isNull():
+            if self._isFaceCenter is True: #user wants to move the lines that define the center of the face
+                if self._FaceCenter is not None:
+                    event.accept()
+                    #remove the Drag  and change cursor
+                    self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                    self.setCursor(QtGui.QCursor(QtCore.Qt.SizeAllCursor))
+                    #remove the lines that currently exist 
+                    for item in self._scene.items():
+                        if isinstance(item, QtWidgets.QGraphicsLineItem):
+                            self._scene.removeItem(item)
+                            
+                    #re-draw the lines
                     
+                    scenePos = self.mapToScene(event.pos()) #take the position of the mouse
+                    x_mousePos = scenePos.toPoint().x()
+                    y_mousePos = scenePos.toPoint().y()
+                    
+                    rect = QtCore.QRectF(self._photo.pixmap().rect())
+                    view_width=rect.width()
+                    view_height=rect.height()
+                    
+                    if x_mousePos>=0 and x_mousePos <= view_width:
+                    
+                        self._FaceCenter = [x_mousePos, y_mousePos]
+                        
+                        rect = QtCore.QRectF(self._photo.pixmap().rect())
+                        view_width=rect.width()
+                        view_height=rect.height()
+                        self.draw_line(0,y_mousePos,view_width,y_mousePos)
+                        self.draw_line(x_mousePos,0,x_mousePos,view_height)
+                    
+            elif self._isRightROI is True:
+                if self._FaceCenter is not None:
+                    #remove the Drag  and change cursor
+                    self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))                
+            
+            #else:
+            #   self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
+
 
         QtWidgets.QGraphicsView.mouseMoveEvent(self, event)
             
-
+    
+    def draw_line(self,x0,y0,x1,y1):
+        pen = QtGui.QPen(QtCore.Qt.green)
+        pen.setWidth(1)
+        pen.setStyle(QtCore.Qt.SolidLine)
+        self._scene.addLine(QtCore.QLineF(x0,y0,x1,y1), pen)
+        
 
     def draw_circle(self, CircleInformation ):
         #this function draws an circle with specific center and radius 
         
         Ellipse = QtWidgets.QGraphicsEllipseItem(0,0,CircleInformation[2]*2,CircleInformation[2]*2)
-        #ellipse will be green
-        pen = QtGui.QPen(QtCore.Qt.green)
+        #ellipse will be red
+        pen = QtGui.QPen(QtCore.Qt.red)
         #set the ellipse line width according to the image size
         if self._scene.height() < 1000:
             pen.setWidth(1)
@@ -164,14 +295,29 @@ class ImageViewer(QtWidgets.QGraphicsView):
             
         Ellipse.setPen(pen)      
         #if I want to fill the ellipse i should do this:
-        #brush = QtGui.QBrush(QtCore.Qt.green) 
-        #Ellipse.setPen(brush)
+        brush = QtGui.QBrush(QtCore.Qt.red) 
+        Ellipse.setBrush(brush)
+
         
         #this is the position of the top-left corner of the ellipse.......
         Ellipse.setPos(CircleInformation[0]-CircleInformation[2],CircleInformation[1]-CircleInformation[2])
         Ellipse.setTransform(QtGui.QTransform())        
         self._scene.addItem(Ellipse)
-   
+        
+    def draw_polygon(self,poly_points):
+        
+        Points = QtGui.QPolygonF()
+        for point in poly_points:
+            Points.append(QtCore.QPointF(point[0],point[1]))
+        
+        Polygon = QtWidgets.QGraphicsPolygonItem()
+        pen = QtGui.QPen(QtCore.Qt.red)
+        pen.setWidth(1)
+        Polygon.setPen(pen)
+        Polygon.setPolygon(Points)
+        Polygon.setTransform(QtGui.QTransform())
+        self._scene.addItem(Polygon)
+            
 
     def set_update_photo(self, toggle=True):
         #this function takes care of updating the view without re-setting the 

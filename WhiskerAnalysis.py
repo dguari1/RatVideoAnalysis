@@ -45,6 +45,10 @@ class MainWindow(QtWidgets.QWidget):
         
         self._current_Image = None #this variable stores the image that is being displayed in the screen 
         
+        self._FaceCenter = None #stores position of face center
+        self._RightROI = None #stores position of right ROI
+        self._LeftRIO = None #stores position of left ROI
+        
         
     def initUI(self):
         #local directory
@@ -80,26 +84,35 @@ class MainWindow(QtWidgets.QWidget):
         
         
         ImageMenu = MenuBar.addMenu("Image")
+                
+        FaceCenterAction = ImageMenu.addAction("Find Face Center")
+        FaceCenterAction.setShortcut("Ctrl+C")
+        FaceCenterAction.triggered.connect(self.face_center)
         
-        ThresholdAction = ImageMenu.addAction("Define Threshold")
+        
+        RigthROIAction = ImageMenu.addAction("Find Right ROI")
+        RigthROIAction.setShortcut("Ctrl+R")
+        RigthROIAction.triggered.connect(self.RigthROI_function)
+        
+        LeftROIAction = ImageMenu.addAction("Find Left ROI")        
+        LeftROIAction.setShortcut("Ctrl+L")
+        LeftROIAction.triggered.connect(self.LeftROI_function)
+        
+        MirrorAction = ImageMenu.addAction("Mirror ROI")
+        MirrorAction.setShortcut("Ctrl+M")
+        MirrorAction.triggered.connect(self.Mirror_function)
+        
+        ThresholdAction = ImageMenu.addAction("Find Threshold")
         ThresholdAction.setShortcut("Ctrl+T")
         ThresholdAction.triggered.connect(self.threhold_function)
         
+        
         RotateAction = ImageMenu.addAction("Rotate Image")
         RotateAction.setShortcut("Ctrl+U")
-
-        FaceCenterAction = ImageMenu.addAction("Define Face Center")
-        FaceCenterAction.setShortcut("Ctrl+C")
-        
-        RigthROIAction = ImageMenu.addAction("Define Right ROI")
-        RigthROIAction.setShortcut("Ctrl+R")
-        
-        LeftROIAction = ImageMenu.addAction("Define Left ROI")        
-        LeftROIAction.setShortcut("Ctrl+L")
         
         VideoMenu = MenuBar.addMenu("Video")
         ForwardAction = VideoMenu.addAction("Move Forvward")
-        ForwardAction.setShortcut("Shift+F")
+        ForwardAction.setShortcut("Shift+D")
         
         BackwardsAction = VideoMenu.addAction("Move Backwards")
         BackwardsAction.setShortcut("Shift+A")
@@ -129,22 +142,101 @@ class MainWindow(QtWidgets.QWidget):
         self.show()
         
         
-#    def face_center(self):
-#        #find a line connecting the center of both iris and then fit a perperdicular
-#        #line in the middle
-#        if self.displayImage._shape is not None:
-#            
-#            if self._toggle_lines == True:
-#                self._toggle_lines = False
-#                points =  estimate_lines(self.displayImage._opencvimage, 
-#                                     self.displayImage._lefteye, 
-#                                     self.displayImage._righteye)
-#                self.displayImage._points = points
-#                self.displayImage.set_update_photo()
-#            else:
-#                self.displayImage._points = None
-#                self.displayImage.set_update_photo()
-#                self._toggle_lines = True    
+    def RigthROI_function(self):
+        #allow the user to select multiple points in the right side of the face 
+        if self._current_Image is not None:
+            if self.displayImage._FaceCenter is not None:
+                rect = QtCore.QRectF(self.displayImage._photo.pixmap().rect())
+                view_width=rect.width()
+                #view_height=rect.height()
+
+                if self.displayImage._FaceCenter[0] >= 0 and self.displayImage._FaceCenter[0] <= view_width:
+                    #remove what is in the screen 
+                    for item in self.displayImage._scene.items():
+    
+                        if isinstance(item, QtWidgets.QGraphicsPolygonItem):
+                            rect = item.boundingRect()
+                            if rect.x() <= self.displayImage._FaceCenter[0]:
+                                self.displayImage._scene.removeItem(item)
+                            
+                        elif isinstance(item, QtWidgets.QGraphicsEllipseItem): 
+                            rect = item.scenePos()
+                            if rect.x() <= self.displayImage._FaceCenter[0]:
+                                self.displayImage._scene.removeItem(item)
+                                
+                    #remove previous data
+                    self.displayImage._temp_storage = []
+                    self.displayImage._RightROI = None
+                                
+                    self.displayImage._isRightROI = True 
+                    
+                    
+    def LeftROI_function(self):
+        #allow the user to select multiple points in the right side of the face 
+        if self._current_Image is not None:
+            if self.displayImage._FaceCenter is not None:
+                rect = QtCore.QRectF(self.displayImage._photo.pixmap().rect())
+                view_width=rect.width()
+                #view_height=rect.height()
+
+                if self.displayImage._FaceCenter[0] >= 0 and self.displayImage._FaceCenter[0] <= view_width:
+                    #remove what is in the screen 
+                    for item in self.displayImage._scene.items():
+    
+                        if isinstance(item, QtWidgets.QGraphicsPolygonItem):
+                            rect = item.boundingRect()
+                            if rect.x() >= self.displayImage._FaceCenter[0]:
+                                self.displayImage._scene.removeItem(item)
+                            
+                        elif isinstance(item, QtWidgets.QGraphicsEllipseItem): 
+                            rect = item.scenePos()
+                            if rect.x() >= self.displayImage._FaceCenter[0]:
+                                self.displayImage._scene.removeItem(item)
+                                
+                    #remove previous data
+                    self.displayImage._temp_storage = []
+                    self.displayImage._LeftROI = None
+                                
+                    self.displayImage._isLeftROI = True      
+                    
+    def Mirror_function(self):
+        if self._current_Image is not None:
+            if self.displayImage._LeftROI is not None and self.displayImage._RightROI is not None:
+
+                #both ROI are present, user needs to define which one will be removed
+                box = QtWidgets.QMessageBox()
+                box.setIcon(QtWidgets.QMessageBox.Question)
+                box.setWindowTitle('Mirror ROI')
+                box.setText('Left and Right ROI are preent.\nPlease select which ROI will be mirrored.')
+                box.setStandardButtons(QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No|QtWidgets.QMessageBox.Cancel)
+                buttonY = box.button(QtWidgets.QMessageBox.Yes)
+                buttonY.setText('Right')
+                buttonN = box.button(QtWidgets.QMessageBox.No)
+                buttonN.setText('Left') 
+                buttonC = box.button(QtWidgets.QMessageBox.Cancel)
+                buttonC.setText('Cancel') 
+                box.exec_()
+                
+                if box.clickedButton() == buttonY:
+                    print('hola')
+                elif box.clickedButton() == buttonN:
+                    print('cola')            
+                elif box.clickedButton() == buttonC:
+                    print('grande')
+                
+            
+        
+    def face_center(self):
+        #allow the user to click in some point of the image and draw two lines indicating the center of the face (vertical and horizontal)
+        if self._current_Image is not None:
+            #remove all lines in the graph
+            for item in self.displayImage._scene.items():
+                if isinstance(item, QtWidgets.QGraphicsLineItem):
+                    self.displayImage._scene.removeItem(item)
+            
+            self.displayImage._isFaceCenter = True
+            self.displayImage._FaceCenter = None
+
             
             
     def load_file(self):
