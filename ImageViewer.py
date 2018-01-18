@@ -6,7 +6,6 @@ Created on Wed Aug 16 10:53:19 2017
 """
 import cv2
 import numpy as np
-from scipy.spatial.distance import cdist
 
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
@@ -123,9 +122,11 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     y_mousePos = scenePos.toPoint().y()
                     self._FaceCenter = [x_mousePos, y_mousePos]
                     
-                    
-                    self.draw_line(0,y_mousePos,view_width,y_mousePos)
-                    self.draw_line(x_mousePos,0,x_mousePos,view_height)
+                    if x_mousePos>=0 and x_mousePos <= view_width:
+                        self.draw_line(0,y_mousePos,view_width,y_mousePos)
+                        self.draw_line(x_mousePos,0,x_mousePos,view_height)
+                        
+                        self.draw_text(x_mousePos,y_mousePos)
                     
             elif self._isRightROI is True: #user if going to input the points for the right ROI
                     
@@ -146,7 +147,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
                 elif event.button() == QtCore.Qt.RightButton: #on right button just finish
                     
                     self._isRightROI = False
-                    self._RightROI = self._temp_storage
+                    self._RightROI = np.asarray(self._temp_storage) #save the ROI limits as an np array. This is useful for math operations with it
                     if len(self._temp_storage) > 2:
                         self.draw_polygon(self._temp_storage)
           
@@ -169,34 +170,10 @@ class ImageViewer(QtWidgets.QGraphicsView):
                 elif event.button() == QtCore.Qt.RightButton: #on right button just finish
                     
                     self._isLeftROI = False
-                    self._LeftROI = self._temp_storage
+                    self._LeftROI = np.asarray(self._temp_storage) #save the ROI limits as an np array. This is useful for math operations with it
                     if len(self._temp_storage) > 2:
                         self.draw_polygon(self._temp_storage)
-                
-                    
-                    
-                    
-#                scenePos = self.mapToScene(event.pos())
-#                if event.button() == QtCore.Qt.RightButton:                                
-#                    #if the user RightClick and no point is lifted then verify if 
-#                    #the position of the click is close to one of the landmarks
-#                    x_mousePos = scenePos.toPoint().x()
-#                    y_mousePos = scenePos.toPoint().y()
-#                    mousePos=np.array([(x_mousePos, y_mousePos)])                   
-#                    distance=cdist(np.append(self._shape,
-#                                    [[self._righteye[0],self._righteye[1]],
-#                                    [self._lefteye[0],self._lefteye[1]]], axis=0)
-#                                    , mousePos)
-#                    distance=distance[:,0]
-#                    PointToModify = [i for i, j in enumerate(distance) if j <=3 ]
-#                    if PointToModify:
-#                        #action
-#                        print('hola')
-#                        
-#                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
-#                    self.set_update_photo()  
-                    
-                   
+
                         
             elif event.button() == QtCore.Qt.LeftButton:
                     
@@ -211,7 +188,14 @@ class ImageViewer(QtWidgets.QGraphicsView):
         if self._isFaceCenter is True:
             self._isFaceCenter = False
             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+            for item in self._scene.items():
+                if isinstance(item,QtWidgets.QGraphicsSimpleTextItem):
+                            self._scene.removeItem(item)
         elif self._isRightROI is True:
+            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+            self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        
+        elif self._isLeftROI is True:
             self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         
@@ -241,6 +225,9 @@ class ImageViewer(QtWidgets.QGraphicsView):
                         if isinstance(item, QtWidgets.QGraphicsLineItem):
                             self._scene.removeItem(item)
                             
+                        if isinstance(item,QtWidgets.QGraphicsSimpleTextItem):
+                            self._scene.removeItem(item)
+                            
                     #re-draw the lines
                     
                     scenePos = self.mapToScene(event.pos()) #take the position of the mouse
@@ -260,6 +247,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
                         view_height=rect.height()
                         self.draw_line(0,y_mousePos,view_width,y_mousePos)
                         self.draw_line(x_mousePos,0,x_mousePos,view_height)
+                        self.draw_text(x_mousePos,y_mousePos)
                     
             elif self._isRightROI is True:
                 if self._FaceCenter is not None:
@@ -276,9 +264,21 @@ class ImageViewer(QtWidgets.QGraphicsView):
     
     def draw_line(self,x0,y0,x1,y1):
         pen = QtGui.QPen(QtCore.Qt.green)
-        pen.setWidth(1)
+        pen.setWidth(2)
         pen.setStyle(QtCore.Qt.SolidLine)
         self._scene.addLine(QtCore.QLineF(x0,y0,x1,y1), pen)
+    
+    
+    def draw_text(self,x,y):
+
+        TextItem = QtWidgets.QGraphicsSimpleTextItem()
+        brush=QtGui.QBrush(QtCore.Qt.green)
+        TextItem.setBrush(brush)
+        TextItem.setPos(QtCore.QPointF(x+10,y-20))
+        TextItem.setText("(%d,%d)"%(x,y))
+
+        
+        self._scene.addItem(TextItem)
         
 
     def draw_circle(self, CircleInformation ):
@@ -312,7 +312,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
         
         Polygon = QtWidgets.QGraphicsPolygonItem()
         pen = QtGui.QPen(QtCore.Qt.red)
-        pen.setWidth(1)
+        pen.setWidth(2)
         Polygon.setPen(pen)
         Polygon.setPolygon(Points)
         Polygon.setTransform(QtGui.QTransform())
@@ -370,8 +370,39 @@ class ImageViewer(QtWidgets.QGraphicsView):
             self.setPhoto(img_show)
         
         
-           
-        
+    def MirrorROI(self,side):
+        if not self._photo.pixmap().isNull(): #verify there is photo
+            
+            #find image dimensions 
+            #rect = QtCore.QRectF(self._photo.pixmap().rect())
+            #view_width=rect.width()
+            #view_height=rect.height()
+            
+            #this will only work if the face center is defines
+            if self._FaceCenter is not None:
+                
+                x_center = self._FaceCenter[0]
+                
+                if side == 'Right':
+                #user wants to mirror the right ROI into the left side...
+                    #update the left ROI and draw it        
+                    self._LeftROI = np.abs([2*x_center,0]-self._RightROI)
+                    for (x,y) in self._LeftROI:
+                        self.draw_circle([x,y,3])            
+                        
+                    self.draw_polygon(self._LeftROI)
+
+                
+                
+                elif side == 'Left':
+                #user wants to mirror the right ROI into the left side...                    
+                    #update the right ROI and draw it                     
+                    self._RightROI = np.abs([2*x_center,0]-self._LeftROI)
+                    for (x,y) in self._RightROI:
+                        self.draw_circle([x,y,3])            
+                        
+                    self.draw_polygon(self._RightROI)
+            
         
         
 

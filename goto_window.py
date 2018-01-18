@@ -12,30 +12,27 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QLabel, QPushButton, QDialog, QSpinBox
-from PyQt5.QtCore import pyqtSignal, pyqtSlot
-
 """
 
 """
 
         
-class ThresholdWindow(QDialog):
+class GoToWindow(QDialog):
         
     
-    Threshold_value = pyqtSignal(int)
-
-    
-    def __init__(self, threshold=None):
-        super(ThresholdWindow, self).__init__()
+    def __init__(self, List=None, FrameIndex=None):
+        super(GoToWindow, self).__init__()
         
-        if threshold:
-            self.threshold = threshold 
+        if FrameIndex:
+            self._FrameIndex = FrameIndex+1
         else:
-            self.threshold = 0
+            self._FrameIndex = 1
+            
+        self._FrameList = List 
        
         #keep the old threshold in memory in case the user cancel the 
         #operation so its value will simply go back to its old number
-        self.old_threshold  = threshold 
+        self._old_FrameIndex  = FrameIndex
 
         self.Canceled = False #informs if the operation was canceled
         
@@ -44,7 +41,7 @@ class ThresholdWindow(QDialog):
         
     def initUI(self):
         
-        self.setWindowTitle('Threshold Selection')
+        self.setWindowTitle('Go To Frame')
         #scriptDir = os.getcwd()#os.path.dirname(os.path.realpath(__file__))
         #self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icon_color'+ os.path.sep + 'report_card.ico'))
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
@@ -64,16 +61,16 @@ class ThresholdWindow(QDialog):
         
         newfont = QtGui.QFont("Times", 12)
         
-        self.label = QLabel('Threshold:')
+        self.label = QLabel('Go to Frame:')
         self.label.setFont(newfont)
         self.label.setFixedWidth(150)
         
         self.spinBox =  QSpinBox()
-        self.spinBox.setMinimum(0)
-        self.spinBox.setMaximum(255)
+        self.spinBox.setMinimum(1)
+        self.spinBox.setMaximum(len(self._FrameList))
         self.spinBox.setFont(newfont)
         self.spinBox.setFixedWidth(150)
-        self.spinBox.setValue(self.threshold)
+        self.spinBox.setValue(self._FrameIndex)
         
         textLayout = QtWidgets.QHBoxLayout()
         textLayout.addWidget(self.label)
@@ -81,10 +78,6 @@ class ThresholdWindow(QDialog):
         
         
         #buttons       
-        TestButton = QPushButton('&Test', self)
-        TestButton.setFixedWidth(75)
-        TestButton.setFont(newfont)
-        TestButton.clicked.connect(self.Test)
         
         DoneButton = QPushButton('&Accept', self)
         DoneButton.setFixedWidth(75)
@@ -97,7 +90,6 @@ class ThresholdWindow(QDialog):
         CancelButton.clicked.connect(self.Cancel)
         
         buttonLayout = QtWidgets.QHBoxLayout()
-        buttonLayout.addWidget(TestButton)
         buttonLayout.addWidget(DoneButton)
         buttonLayout.addWidget(CancelButton)
         
@@ -111,26 +103,21 @@ class ThresholdWindow(QDialog):
         
         self.setLayout(layout)
 
-        #fis the size, the user cannot change it 
-        #self.setFixedSize(self.size())
+        #fix the size, the user cannot change it 
+        self.resize(self.sizeHint())
+        self.setFixedSize(self.size())
         
-        #self.show()
-        
-    @pyqtSlot()  
-    def Test(self):
-        
-        self.threshold = self.spinBox.value()
-        self.Threshold_value.emit(self.threshold)
+        #self.show()   
         
     def Done(self):
         
-        self.threshold = self.spinBox.value()
+        self._FrameIndex = self.spinBox.value()-1
        
         self.close()
 
     def Cancel(self):
         
-        self.threshold = self.old_threshold 
+        self._FrameList = self.old_threshold 
         self.Canceled = True
         
         self.close()  
@@ -148,7 +135,7 @@ if __name__ == '__main__':
 #    else:
 #        app = QtWidgets.QApplication.instance()
        
-    GUI = ThresholdWindow()
+    GUI = GoToWindow()
     GUI.show()
     app.exec_()
     

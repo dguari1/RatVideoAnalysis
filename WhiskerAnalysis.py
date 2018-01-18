@@ -18,9 +18,48 @@ from PyQt5 import QtCore
 
 from ImageViewer import ImageViewer
 
-from threshold import ThresholdWindow
+from threshold_window import ThresholdWindow
+from goto_window import GoToWindow
+from fps_window import FPSWindow
 
 
+def get_pixmap(image, threshold):
+    #conver an opencv image to a QtImage (Pixmap) this function takes into consideration
+    #if the image is color or gray and if there is a threshold defined or not
+    if threshold is None:                        
+        #separate color and gray images
+        if len(image.shape) == 3: #color image
+            height, width, channel = image.shape
+            bytesPerLine = 3 * width
+            img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
+        elif len(image.shape) == 2: #gary image
+            height, width = image.shape
+            bytesPerLine = 1 * width
+            img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+        
+        img_show = QtGui.QPixmap.fromImage(img_Qt)
+    else:
+        #function differs if image is color or gray         
+        if len(image.shape) == 3: #color image     
+            #convert to gray
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            #apply threshold
+            image[image>threshold] = 255
+            height, width = image.shape
+            bytesPerLine = 1 * width
+            img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+            img_show = QtGui.QPixmap.fromImage(img_Qt)
+        elif len(image.shape) == 2: #gray image
+            image[image>threshold] = 255
+            height, width = image.shape
+            bytesPerLine = 1 * width
+            img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+        
+        img_show = QtGui.QPixmap.fromImage(img_Qt) 
+            
+    return img_show            
+            
+    
 
 class QHLine(QtWidgets.QFrame):
     def __init__(self):
@@ -48,6 +87,14 @@ class MainWindow(QtWidgets.QWidget):
         self._FaceCenter = None #stores position of face center
         self._RightROI = None #stores position of right ROI
         self._LeftRIO = None #stores position of left ROI
+        
+        self._FrameIndex = 0  #Frame Index
+        self._FileList = None #list of files to be processed
+        self._Folder = None #folder where photos are located 
+        
+        self._fps = 24  #this variable controls the playback speed
+        
+        self.timer = QtCore.QTimer()  #controls video playback 
         
         
     def initUI(self):
@@ -106,17 +153,38 @@ class MainWindow(QtWidgets.QWidget):
         ThresholdAction.setShortcut("Ctrl+T")
         ThresholdAction.triggered.connect(self.threhold_function)
         
+        ResetThresholdAction = ImageMenu.addAction("Reset Threshold")
+        ResetThresholdAction.setShortcut("Ctrl+Y")
+        ResetThresholdAction.triggered.connect(self.reset_threshold_function)
+        
         
         RotateAction = ImageMenu.addAction("Rotate Image")
         RotateAction.setShortcut("Ctrl+U")
         
         VideoMenu = MenuBar.addMenu("Video")
-        ForwardAction = VideoMenu.addAction("Move Forvward")
+        ForwardAction = VideoMenu.addAction("Move Forward")
         ForwardAction.setShortcut("Shift+D")
+        ForwardAction.triggered.connect(self.Forward_function)
         
-        BackwardsAction = VideoMenu.addAction("Move Backwards")
-        BackwardsAction.setShortcut("Shift+A")
+        BackwardAction = VideoMenu.addAction("Move Backward")
+        BackwardAction.setShortcut("Shift+A")
+        BackwardAction.triggered.connect(self.Backward_function)
         
+        PlayAction = VideoMenu.addAction("Play Movie")
+        PlayAction.setShortcut("Shift+Z")
+        PlayAction.triggered.connect(self.Play_function)
+        
+        StopAction = VideoMenu.addAction("Stop Movie")
+        StopAction.setShortcut("Shift+S")
+        StopAction.triggered.connect(self.Stop_function)
+        
+        GotoAction = VideoMenu.addAction("GoTo Frame")
+        GotoAction.setShortcut("Shift+F")
+        GotoAction.triggered.connect(self.goto_function)
+        
+        SpeedAction = VideoMenu.addAction("PlayBack Speed")
+        SpeedAction.setShortcut("Shift+P")
+        SpeedAction.triggered.connect(self.speed_function)
         
         ProcessMenu = MenuBar.addMenu("Process")
         
@@ -140,7 +208,168 @@ class MainWindow(QtWidgets.QWidget):
 
         self.resize(800, 650)
         self.show()
+   
+    def load_file(self):
         
+#        #load a file using the widget
+#        name,_ = QtWidgets.QFileDialog.getOpenFileName(
+#                self,'Load Image',
+#                '',"Image files (*.png *.jpg *.jpeg *.tif *.tiff *.PNG *.JPG *.JPEG *.TIF *.TIFF)")
+#        
+#        if not name:
+#            pass
+#        else:
+#            temp_image  = cv2.imread(name)
+#            image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+#            self._current_Image = image
+#            #separate color and gray images
+#            if len(image.shape) == 3: #color image
+#                height, width, channel = image.shape
+#                bytesPerLine = 3 * width
+#                img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
+#            elif len(image.shape) == 2: #gary image
+#                height, width = image.shape
+#                bytesPerLine = 1 * width
+#                img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+#            img_show = QtGui.QPixmap.fromImage(img_Qt)
+#            
+#            #show the photo
+#            self.displayImage.setPhoto(img_show)     
+                
+        name = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select directory')
+        if not name:
+            pass
+        else:
+            Files = os.listdir(name)            
+            ext=('.png', '.jpg', '.jpeg', '.bmp','tif', 'tiff', '.PNG', '.JPG', '.JPEG', '.BMP', 'TIF', 'TIFF')
+            Files = [i for i in Files if i.endswith(tuple(ext))]
+            
+            if not Files: #no items in the folder, print a critiall error message 
+                QtWidgets.QMessageBox.critical(self, 'No Valid Files', 
+                            'Selected folder does not contain valid files.\nPlease select another folder.')
+            else:  #there are files
+                #reset everything 
+                self._threshold = None #threshold for image processing 
+        
+                self._current_Image = None #this variable stores the image that is being displayed in the screen 
+                
+                self._FaceCenter = None #stores position of face center
+                self._RightROI = None #stores position of right ROI
+                self._LeftRIO = None #stores position of left ROI
+                
+                self._FrameIndex = 0  #Frame Index
+                self._FileList = None #list of files to be processed
+                self._Folder = None #folder where photos are located 
+                      
+                #sort the files
+                Files.sort()            
+                self._FrameIndex = 0
+                self._FileList = Files
+                self._Folder = name
+                #and pick the first one 
+                temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
+                image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+                self._current_Image = image
+                
+                img_show = get_pixmap(self._current_Image, self._threshold)
+                
+                #show the photo
+                self.displayImage.setPhoto(img_show)  
+                    
+    def Forward_function(self):
+        #move the video forward
+        if self._current_Image is not None: #verify that there is an image on screen
+            if self._FileList is not None: #verify that file list is not empy
+                if self._FrameIndex < len(self._FileList):
+                    self._FrameIndex += 1
+                    temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
+                    image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+                    self._current_Image = image
+                    
+                    img_show = get_pixmap(self._current_Image, self._threshold)
+                    
+                    #show the photo
+                    self.displayImage.setPhoto(img_show)  
+                    
+                
+
+    def Backward_function(self):
+        #move the video backwards
+        if self._current_Image is not None: #verify that there is an image on screen
+            if self._FileList is not None: #verify that file list is not empy
+                if self._FrameIndex > 0:
+                    self._FrameIndex -= 1
+                    temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
+                    image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+                    self._current_Image = image
+                    
+                    img_show = get_pixmap(self._current_Image, self._threshold)
+                    
+                    #show the photo
+                    self.displayImage.setPhoto(img_show)  
+                    
+                    
+    def Play_function(self):
+        #play the frames as video
+        if self._current_Image is not None: #verify that there is an image on screen
+            if self._FileList is not None: #verify that file list is not empy
+                        
+                    self.timer.timeout.connect(self.nextFrame_function)
+                    self.timer.start(1000.0/self._fps)
+   
+    
+    def nextFrame_function(self):
+        if self._FrameIndex < len(self._FileList):
+            self._FrameIndex += 1
+            temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
+            image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+            self._current_Image = image
+            
+            img_show = get_pixmap(self._current_Image, self._threshold)
+            
+            #show the photo
+            self.displayImage.setPhoto(img_show)  
+            
+        else:
+            self.timer.stop()
+                
+            
+    def Stop_function(self):
+        #stop playback
+        self.timer.stop()
+                  
+                    
+    def goto_function(self):
+        if self._current_Image is not None: #verify that there is an image on screen
+            if self._FileList is not None: #verify that file list is not empy
+                self.goto = GoToWindow(self._FileList, self._FrameIndex)
+                self.goto.exec_()
+                
+                if self.goto.Canceled is False:
+                    #update threshold 
+                    self._FrameIndex = self.goto._FrameIndex 
+                    temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
+                    image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+                    self._current_Image = image
+                    
+                    img_show = get_pixmap(self._current_Image, self._threshold)
+                    
+                    #show the photo
+                    self.displayImage.setPhoto(img_show)  
+                else:
+                    pass
+                            
+    def speed_function(self):
+        if self._current_Image is not None: #verify that there is an image on screen
+            if self._FileList is not None: #verify that file list is not empy
+                self.speed = FPSWindow(self._fps)
+                self.speed.exec_()
+                
+                if self.speed.Canceled is False:
+                    #update threshold 
+                    self._fps = self.speed._fps
+                else:
+                    pass        
         
     def RigthROI_function(self):
         #allow the user to select multiple points in the right side of the face 
@@ -207,23 +436,56 @@ class MainWindow(QtWidgets.QWidget):
                 box = QtWidgets.QMessageBox()
                 box.setIcon(QtWidgets.QMessageBox.Question)
                 box.setWindowTitle('Mirror ROI')
-                box.setText('Left and Right ROI are preent.\nPlease select which ROI will be mirrored.')
+                box.setText('Left and Right ROI are present.\nSelect ROI to mirror.')
                 box.setStandardButtons(QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No|QtWidgets.QMessageBox.Cancel)
-                buttonY = box.button(QtWidgets.QMessageBox.Yes)
-                buttonY.setText('Right')
-                buttonN = box.button(QtWidgets.QMessageBox.No)
-                buttonN.setText('Left') 
+                buttonR = box.button(QtWidgets.QMessageBox.Yes)
+                buttonR.setText('Right')
+                buttonL = box.button(QtWidgets.QMessageBox.No)
+                buttonL.setText('Left') 
                 buttonC = box.button(QtWidgets.QMessageBox.Cancel)
                 buttonC.setText('Cancel') 
                 box.exec_()
                 
-                if box.clickedButton() == buttonY:
-                    print('hola')
-                elif box.clickedButton() == buttonN:
-                    print('cola')            
+                if box.clickedButton() == buttonR:
+                    #erase what we know about left ROI and remove it from the screen 
+                    self.displayImage._LeftROI = None
+                    for item in self.displayImage._scene.items():
+    
+                        if isinstance(item, QtWidgets.QGraphicsPolygonItem):
+                            rect = item.boundingRect()
+                            if rect.x() >= self.displayImage._FaceCenter[0]:
+                                self.displayImage._scene.removeItem(item)
+                            
+                        elif isinstance(item, QtWidgets.QGraphicsEllipseItem): 
+                            rect = item.scenePos()
+                            if rect.x() >= self.displayImage._FaceCenter[0]:
+                                self.displayImage._scene.removeItem(item)
+                                
+                elif box.clickedButton() == buttonL:
+                    #erase what we know about right ROI and remove it from the screen 
+                    self.displayImage._RightROI =None  
+                    for item in self.displayImage._scene.items():
+    
+                        if isinstance(item, QtWidgets.QGraphicsPolygonItem):
+                            rect = item.boundingRect()
+                            if rect.x() <= self.displayImage._FaceCenter[0]:
+                                self.displayImage._scene.removeItem(item)
+                            
+                        elif isinstance(item, QtWidgets.QGraphicsEllipseItem): 
+                            rect = item.scenePos()
+                            if rect.x() <= self.displayImage._FaceCenter[0]:
+                                self.displayImage._scene.removeItem(item)
                 elif box.clickedButton() == buttonC:
-                    print('grande')
+                    pass
                 
+            
+            if self.displayImage._LeftROI is None: 
+                #user wants to mirror the righ ROI to the left 
+                self.displayImage.MirrorROI('Right')
+                
+            elif self.displayImage._RightROI is None:
+                #user wants to mirror the left ROI to the right 
+                self.displayImage.MirrorROI('Left')
             
         
     def face_center(self):
@@ -237,28 +499,6 @@ class MainWindow(QtWidgets.QWidget):
             self.displayImage._isFaceCenter = True
             self.displayImage._FaceCenter = None
 
-            
-            
-    def load_file(self):
-        
-        #load a file using the widget
-        name,_ = QtWidgets.QFileDialog.getOpenFileName(
-                self,'Load Image',
-                '',"Image files (*.png *.jpg *.jpeg *.tif *.tiff *.PNG *.JPG *.JPEG *.TIF *.TIFF)")
-        
-        if not name:
-            pass
-        else:
-            temp_image  = cv2.imread(name)
-            image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
-            self._current_Image = image
-            height, width, channel = image.shape
-            bytesPerLine = 3 * width
-            img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
-            img_show = QtGui.QPixmap.fromImage(img_Qt)
-            
-            #show the photo
-            self.displayImage.setPhoto(img_show)
     
 
     def threhold_function(self):
@@ -282,43 +522,30 @@ class MainWindow(QtWidgets.QWidget):
                 
             else:
                 self.th = ThresholdWindow(self._threshold)
+                self.th.Threshold_value.connect(self.test_threshold)
                 self.th.exec_()
                 if self.th.Canceled is False:
                     #update threshold 
                     self._threshold = self.th.threshold 
                     
+                    
+            img_show = get_pixmap(self._current_Image, self._threshold)
+            self.displayImage.setPhoto(img_show)
+            
+    
+    def reset_threshold_function(self):
+        self._threshold = None
+        img_show = get_pixmap(self._current_Image, self._threshold)
+            
+        #show the photo
+        self.displayImage.setPhoto(img_show)  
         
-            if self._threshold is not None:
-                if self.th.Canceled is False:                    
-                    #update image
-                    image = self._current_Image.copy()
-                    image[image>self._threshold] = 255
-                    #image = 0.299*image[:,:,0]+0.587*image[:,:,1]+0.114*image[:,:,2]
-                    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-                    self._current_Image = image.copy()
-                    height, width = image.shape
-                    bytesPerLine = 1 * width
-                    img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
-                    img_show = QtGui.QPixmap.fromImage(img_Qt)
-                    
-                    #show the photo
-                    self.displayImage.setPhoto(img_show)
-                    
+                
                     
     def test_threshold(self, threshold):
-        image = self._current_Image.copy()
-        image[image>threshold] = 255
-        #image = 0.299*image[:,:,0]+0.587*image[:,:,1]+0.114*image[:,:,2]
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        height, width = image.shape
-        bytesPerLine = 1 * width
-        img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
-        img_show = QtGui.QPixmap.fromImage(img_Qt)
-        
+        img_show = get_pixmap(self._current_Image, threshold)            
         #show the photo
-        self.displayImage.setPhoto(img_show)
-        
+        self.displayImage.setPhoto(img_show)               
             
     def close_app(self):  
         
