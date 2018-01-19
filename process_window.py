@@ -7,6 +7,8 @@ Created on Sat Aug 19 12:54:17 2017
 
 import os
 import sys
+from multiprocessing import Pool
+from functools import partial
 
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
@@ -17,23 +19,23 @@ from PyQt5.QtWidgets import QLabel, QPushButton, QDialog, QSpinBox
 """
 
         
-class FPSWindow(QDialog):
+class ProcessWindow(QDialog):
         
     
-    def __init__(self, fps=None):
-        super(FPSWindow, self).__init__()
+    def __init__(self):
+        super(ProcessWindow, self).__init__()
         
-        if fps:
-            self._fps = fps
+        self._MultiProcessor = True
+        self._MaxAgents =  os.cpu_count()
+        if self._MaxAgents > 2:
+            self._NumAgents = int(self._MaxAgents/2)
         else:
-            self._FrameIndex = 24
+            self._NumAgents = 1
             
-       
-        #keep the old threshold in memory in case the user cancel the 
-        #operation so its value will simply go back to its old number
-        self._old_fps  = fps
-
-        self.Canceled = False #informs if the operation was canceled
+        self._SaveWaveforms = True
+        self._FileName = None
+        
+        self._DisplayResults = False
         
                 
         self.initUI()
@@ -60,7 +62,7 @@ class FPSWindow(QDialog):
         
         newfont = QtGui.QFont("Times", 12)
         
-        self.label = QLabel('Frames per second:')
+        self.label_process = QLabel('Use Multiple Processors:')
         self.label.setFont(newfont)
         self.label.setFixedWidth(150)
         
@@ -128,13 +130,13 @@ class FPSWindow(QDialog):
 
         
 if __name__ == '__main__':
-    app = QtWidgets.QApplication([])
-#    if not QtWidgets.QApplication.instance():
-#        app = QtWidgets.QApplication(sys.argv)
-#    else:
-#        app = QtWidgets.QApplication.instance()
+#    app = QtWidgets.QApplication([])
+    if not QtWidgets.QApplication.instance():
+        app = QtWidgets.QApplication(sys.argv)
+    else:
+        app = QtWidgets.QApplication.instance()
        
-    GUI = FPSWindow()
+    GUI = ProcessWindow()
     GUI.show()
     app.exec_()
     

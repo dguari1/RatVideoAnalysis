@@ -234,8 +234,11 @@ class MainWindow(QtWidgets.QWidget):
 #            img_show = QtGui.QPixmap.fromImage(img_Qt)
 #            
 #            #show the photo
-#            self.displayImage.setPhoto(img_show)     
-                
+#            self.displayImage.setPhoto(img_show)    
+        
+        #stop playback
+        self.timer.stop()
+        
         name = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select directory')
         if not name:
             pass
@@ -277,6 +280,9 @@ class MainWindow(QtWidgets.QWidget):
                 self.displayImage.setPhoto(img_show)  
                     
     def Forward_function(self):
+        #stop playback
+        self.timer.stop()
+        
         #move the video forward
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
@@ -294,6 +300,9 @@ class MainWindow(QtWidgets.QWidget):
                 
 
     def Backward_function(self):
+        #stop playback
+        self.timer.stop()
+        
         #move the video backwards
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
@@ -340,6 +349,9 @@ class MainWindow(QtWidgets.QWidget):
                   
                     
     def goto_function(self):
+        #stop playback
+        self.timer.stop()
+        
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
                 self.goto = GoToWindow(self._FileList, self._FrameIndex)
@@ -360,6 +372,9 @@ class MainWindow(QtWidgets.QWidget):
                     pass
                             
     def speed_function(self):
+        #stop playback
+        self.timer.stop()
+        
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
                 self.speed = FPSWindow(self._fps)
@@ -368,10 +383,15 @@ class MainWindow(QtWidgets.QWidget):
                 if self.speed.Canceled is False:
                     #update threshold 
                     self._fps = self.speed._fps
+                    self.timer.timeout.connect(self.nextFrame_function)
+                    self.timer.start(1000.0/self._fps)
                 else:
                     pass        
         
     def RigthROI_function(self):
+        #stop playback
+        self.timer.stop()
+        
         #allow the user to select multiple points in the right side of the face 
         if self._current_Image is not None:
             if self.displayImage._FaceCenter is not None:
@@ -401,6 +421,9 @@ class MainWindow(QtWidgets.QWidget):
                     
                     
     def LeftROI_function(self):
+        #stop playback
+        self.timer.stop()
+        
         #allow the user to select multiple points in the right side of the face 
         if self._current_Image is not None:
             if self.displayImage._FaceCenter is not None:
@@ -429,8 +452,13 @@ class MainWindow(QtWidgets.QWidget):
                     self.displayImage._isLeftROI = True      
                     
     def Mirror_function(self):
+       
+        
         if self._current_Image is not None:
             if self.displayImage._LeftROI is not None and self.displayImage._RightROI is not None:
+                
+                #stop playback
+                self.timer.stop()
 
                 #both ROI are present, user needs to define which one will be removed
                 box = QtWidgets.QMessageBox()
@@ -489,6 +517,9 @@ class MainWindow(QtWidgets.QWidget):
             
         
     def face_center(self):
+        #stop playback
+        self.timer.stop()
+        
         #allow the user to click in some point of the image and draw two lines indicating the center of the face (vertical and horizontal)
         if self._current_Image is not None:
             #remove all lines in the graph
@@ -502,6 +533,8 @@ class MainWindow(QtWidgets.QWidget):
     
 
     def threhold_function(self):
+        #stop playback
+        self.timer.stop()
         
         if self._current_Image is not None:
             
@@ -534,6 +567,7 @@ class MainWindow(QtWidgets.QWidget):
             
     
     def reset_threshold_function(self):
+        
         self._threshold = None
         img_show = get_pixmap(self._current_Image, self._threshold)
             
@@ -549,6 +583,8 @@ class MainWindow(QtWidgets.QWidget):
             
     def close_app(self):  
         
+        #stop playback
+        self.timer.stop()
         
         #ask is the user really wants to close the app
         choice = QtWidgets.QMessageBox.question(self, 'Message', 
@@ -561,6 +597,9 @@ class MainWindow(QtWidgets.QWidget):
             pass  
         
     def closeEvent(self, event):
+        #stop playback
+        self.timer.stop()
+        
         #we need to close all the windows before closing the program  
         if self._new_window is not None:
             self._new_window.close()

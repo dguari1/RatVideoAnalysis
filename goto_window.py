@@ -117,7 +117,7 @@ class GoToWindow(QDialog):
 
     def Cancel(self):
         
-        self._FrameList = self.old_threshold 
+        self._FrameIndex = self._old_FrameIndex
         self.Canceled = True
         
         self.close()  
