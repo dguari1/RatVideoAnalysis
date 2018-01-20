@@ -372,8 +372,12 @@ class MainWindow(QtWidgets.QWidget):
                     pass
                             
     def speed_function(self):
-        #stop playback
-        self.timer.stop()
+
+        isActive = False #this variable informs if the video was runnig 
+        if self.timer.isActive(): #verify is the video is running 
+            isActive = True
+            #stop playback
+            self.timer.stop()
         
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
@@ -383,8 +387,11 @@ class MainWindow(QtWidgets.QWidget):
                 if self.speed.Canceled is False:
                     #update threshold 
                     self._fps = self.speed._fps
-                    self.timer.timeout.connect(self.nextFrame_function)
-                    self.timer.start(1000.0/self._fps)
+                    
+                    if isActive: #if the video was running then make it run again 
+                        
+                        self.timer.timeout.connect(self.nextFrame_function)
+                        self.timer.start(1000.0/self._fps)
                 else:
                     pass        
         
