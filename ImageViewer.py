@@ -6,6 +6,7 @@ Created on Wed Aug 16 10:53:19 2017
 """
 import cv2
 import numpy as np
+import os
 
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
@@ -238,10 +239,10 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     view_width=rect.width()
                     view_height=rect.height()
                     
-                    if x_mousePos>=0 and x_mousePos <= view_width:
+                    self._FaceCenter = [x_mousePos, y_mousePos]
                     
-                        self._FaceCenter = [x_mousePos, y_mousePos]
-                        
+                    if x_mousePos>=0 and x_mousePos <= view_width:
+                                           
                         rect = QtCore.QRectF(self._photo.pixmap().rect())
                         view_width=rect.width()
                         view_height=rect.height()
@@ -386,7 +387,9 @@ class ImageViewer(QtWidgets.QGraphicsView):
                 if side == 'Right':
                 #user wants to mirror the right ROI into the left side...
                     #update the left ROI and draw it        
-                    self._LeftROI = np.abs([2*x_center,0]-self._RightROI)
+                    #self._LeftROI = np.abs([2*x_center,0]-self._RightROI)
+                    self._LeftROI = [2*x_center,0]-self._RightROI
+                    self._LeftROI[:,1] = abs(self._LeftROI[:,1])
                     for (x,y) in self._LeftROI:
                         self.draw_circle([x,y,3])            
                         
@@ -397,12 +400,71 @@ class ImageViewer(QtWidgets.QGraphicsView):
                 elif side == 'Left':
                 #user wants to mirror the right ROI into the left side...                    
                     #update the right ROI and draw it                     
-                    self._RightROI = np.abs([2*x_center,0]-self._LeftROI)
+                    #self._RightROI = np.abs([2*x_center,0]-self._LeftROI)
+                    self._RightROI = [2*x_center,0]-self._LeftROI
+                    self._RightROI[:,1] = abs(self._RightROI[:,1])
                     for (x,y) in self._RightROI:
                         self.draw_circle([x,y,3])            
                         
                     self.draw_polygon(self._RightROI)
+                    
+                    
+    def draw_from_txt(self, FaceCenter, RightROI, leftROI):
+        #draw in screen from information read from txt file
+        self._FaceCenter = FaceCenter[0]        
+        self._RightROI = RightROI
+        self._LeftROI = leftROI
+        
+        #clean scene
+        for item in self._scene.items():
+            if isinstance(item, QtWidgets.QGraphicsPixmapItem):
+                pass
+            else:
+                self._scene.removeItem(item)
+        
+        #draw midline        
+        rect = QtCore.QRectF(self._photo.pixmap().rect())
+        view_height=rect.height()
+        view_width=rect.width()
+        self.draw_line(self._FaceCenter[0],0, self._FaceCenter[0],view_height)
+        self.draw_line(0,self._FaceCenter[1],view_width, self._FaceCenter[1])
+        
+        #draw points
+        for (x,y) in self._RightROI:
+            self.draw_circle([x,y,3])
             
+        for (x,y) in self._LeftROI:
+            self.draw_circle([x,y,3])
+            
+        #draw polynomials
+        self.draw_polygon(self._RightROI)
+        self.draw_polygon(self._LeftROI)
+        
+    def screenshot(self,name):
+
+        rect = QtCore.QRectF(self._photo.pixmap().rect())
+        width=rect.width()
+        height=rect.height()
+        outputimg = QtGui.QPixmap(width, height)
+        painter = QtGui.QPainter(outputimg)
+        targetrect = QtCore.QRectF(0, 0, width, height)
+        sourcerect = QtCore.QRect(0, 0, width, height)
+ 
+        secondview = QtWidgets.QGraphicsView(self)
+        secondview.setScene(self._scene)
+        secondview.render(painter, targetrect, sourcerect)
+        
+        
+        outputimg.save(name, 'PNG') 
+        painter.end()
+        
+    def clean_scene(self):
+        #clean scene
+        for item in self._scene.items():
+            if isinstance(item, QtWidgets.QGraphicsPixmapItem):
+                pass
+            else:
+                self._scene.removeItem(item)
         
         
 

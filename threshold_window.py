@@ -37,7 +37,7 @@ class ThresholdWindow(QDialog):
         #operation so its value will simply go back to its old number
         self.old_threshold  = threshold 
 
-        self.Canceled = False #informs if the operation was canceled
+        self.Canceled = True #informs if the operation was canceled
         
                 
         self.initUI()
@@ -45,8 +45,8 @@ class ThresholdWindow(QDialog):
     def initUI(self):
         
         self.setWindowTitle('Threshold Selection')
-        #scriptDir = os.getcwd()#os.path.dirname(os.path.realpath(__file__))
-        #self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icon_color'+ os.path.sep + 'report_card.ico'))
+        scriptDir = os.getcwd()
+        self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'face_icon.ico'))
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowFlags(self.windowFlags() |
                               QtCore.Qt.WindowSystemMenuHint |
@@ -74,6 +74,7 @@ class ThresholdWindow(QDialog):
         self.spinBox.setFont(newfont)
         self.spinBox.setFixedWidth(150)
         self.spinBox.setValue(self.threshold)
+        self.spinBox.valueChanged.connect(self.Test)
         
         textLayout = QtWidgets.QHBoxLayout()
         textLayout.addWidget(self.label)
@@ -125,14 +126,12 @@ class ThresholdWindow(QDialog):
     def Done(self):
         
         self.threshold = self.spinBox.value()
-       
+        self.Canceled = False
         self.close()
 
     def Cancel(self):
         
-        self.threshold = self.old_threshold 
-        self.Canceled = True
-        
+        self.threshold = self.old_threshold         
         self.close()  
 
        

@@ -33,7 +33,7 @@ class FPSWindow(QDialog):
         #operation so its value will simply go back to its old number
         self._old_fps  = fps
 
-        self.Canceled = False #informs if the operation was canceled
+        self.Canceled = True #informs if the operation was canceled
         
                 
         self.initUI()
@@ -41,8 +41,8 @@ class FPSWindow(QDialog):
     def initUI(self):
         
         self.setWindowTitle('PlayBack Speed')
-        #scriptDir = os.getcwd()#os.path.dirname(os.path.realpath(__file__))
-        #self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'icon_color'+ os.path.sep + 'report_card.ico'))
+        scriptDir = os.getcwd()
+        self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'face_icon.ico'))
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowFlags(self.windowFlags() |
                               QtCore.Qt.WindowSystemMenuHint |
@@ -109,7 +109,7 @@ class FPSWindow(QDialog):
         #self.show()   
         
     def Done(self):
-        
+        self.Canceled = False
         self._fps = self.spinBox.value()
        
         self.close()
@@ -117,13 +117,11 @@ class FPSWindow(QDialog):
     def Cancel(self):
         
         self._fps = self._old_fps
-        self.Canceled = True
         
         self.close()  
 
        
     def closeEvent(self, event):
-
         event.accept()
 
         
