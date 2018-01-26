@@ -120,7 +120,7 @@ class VideoWindow(QDialog):
                               QtCore.Qt.WindowMinMaxButtonsHint)
         
         
-        self.main_Widget = QtWidgets.QWidget(self)
+        #self.main_Widget = QtWidgets.QWidget(self)
         
         spacerh = QtWidgets.QWidget(self)
         spacerh.setFixedSize(20,0)

@@ -281,7 +281,7 @@ class FramesAnalysis(QObject):
     def ProcessFrames(self):
        
         Files = self._ListofFiles
-        Files = Files[self._resultsInfo._InitFrame-1:self._resultsInfo._EndFrame:self._resultsInfo._subSampling]        
+        #Files = Files[self._resultsInfo._InitFrame-1:self._resultsInfo._EndFrame:self._resultsInfo._subSampling]        
         
         
         #is the processing going to happen in parallel?
@@ -453,7 +453,7 @@ class AnalysisWindow(QDialog):
                               QtCore.Qt.WindowMinMaxButtonsHint)
         
         
-        self.main_Widget = QtWidgets.QWidget(self)
+        #self.main_Widget = QtWidgets.QWidget(self)
         
         spacerh = QtWidgets.QWidget(self)
         spacerh.setFixedSize(20,0)
