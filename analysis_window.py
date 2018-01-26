@@ -10,6 +10,7 @@ import sys
 import cv2
 import time
 import numpy as np
+from scipy import signal 
 import matplotlib.pyplot as plt
 
 from multiprocessing import Pool
@@ -40,7 +41,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
     ListofFiles = ListofFiles
     
     #'unzip' all the aditional parameters that where passed
-    foldername, center, RightROI, LeftROI, threshold, angles, Side = zip(*ExtraInfo)  
+    foldername, center, RightROI, LeftROI, threshold, angles, Side, rotation_angle = zip(*ExtraInfo)  
 
     
     
@@ -49,7 +50,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
     RightROI = RightROI[0]
     LeftROI = LeftROI[0]
     threshold = threshold[0]
-
+    rotation_angle = rotation_angle[0]
     Side = Side[0]
     angles = angles[0]
 
@@ -68,10 +69,17 @@ def rot_estimation(ListofFiles,ExtraInfo):
     #read first image in gray scale
     image = cv2.imread(os.path.join(foldername,ListofFiles[0]),0)  #last 0 means gray scale
     
+    
+    
     #remove the first element from the list
     ListofFiles = np.delete(ListofFiles,[0])
     
     h_orig, w_orig = image.shape #original shape 
+    
+    if rotation_angle is not None: #rotate
+        M_overall = cv2.getRotationMatrix2D(tuple(int(w_orig/2),int(h_orig/2)), rotation_angle, 1.0)
+        image = cv2.warpAffine(image, M_overall, (w_orig, h_orig))
+    
     #we have to do different operation depending on what side 
     if Side == 'Right':
         ROI = RightROI
@@ -108,7 +116,9 @@ def rot_estimation(ListofFiles,ExtraInfo):
         
         if file is not None:
             #load a new image in gray scale
-            image = cv2.imread(os.path.join(foldername,file),0)   
+            image = cv2.imread(os.path.join(foldername,file),0)  
+            if rotation_angle is not None: #rotate      
+                image = cv2.warpAffine(image, M_overall, (w_orig, h_orig))
             
             if Side == 'Right':
                 image = image[:,0:center[0]] #take right side
@@ -277,12 +287,13 @@ class FramesAnalysis(QObject):
         
         
         
+        
+        
     @pyqtSlot()
     def ProcessFrames(self):
        
-        Files = self._ListofFiles
-        #Files = Files[self._resultsInfo._InitFrame-1:self._resultsInfo._EndFrame:self._resultsInfo._subSampling]        
-        
+        Files = self._ListofFiles      
+        rotation_angle = self._resultsInfo._rotation_angle  #get the desired rotation angle 
         
         #is the processing going to happen in parallel?
         if self._parallel._MultiProcessor:
@@ -335,70 +346,129 @@ class FramesAnalysis(QObject):
             st_time = time.time()  
             pool = self._Pool #Make a local copy Pool(processes=agents)
             
-            it_right = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
-                            [self._RightROI], [self._LeftROI],
-                            [self._threshold], [self._angles], ['Right'])),FilesforProcessing)
-            #ExtraInformation_left = 
-            it_left = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
-                            [self._RightROI], [self._LeftROI],
-                            [self._threshold], [self._angles], ['Left'])),FilesforProcessing)
-            res_right= []
-            res_left= []
-#            for k in range(0,agents):
-#                res_right.append(it_right.next())
-#            for k in range(0,agents):
-#                res_left.append(it_left.next())  
-                
-            for x in it_right:
-                res_right.append(x)
-            for y in it_left:
-                res_left.append(y)
-                           
-            pool.terminate()
-            pool.join()   
-            duration = time.time()-st_time  
+            if self._resultsInfo._AnalizeResults == 'Both': #analize both sides of the face
             
-            results_right = np.zeros((1,1),dtype = np.float64)
-            for k in range(0,len(res_right)):
-                temp = res_right[k]
-                results_right = np.append(results_right,temp[1:]) 
-                  
-            results_left = np.zeros((1,1),dtype = np.float64)
-            for k in range(0,len(res_left)):
-                temp = res_left[k]
-                results_left = np.append(results_left,temp[1:])   
+                it_right = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
+                                [self._RightROI], [self._LeftROI],
+                                [self._threshold], [self._angles], ['Right'], [rotation_angle])),FilesforProcessing)
+                
+                it_left = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
+                                [self._RightROI], [self._LeftROI],
+                                [self._threshold], [self._angles], ['Left'], [rotation_angle])),FilesforProcessing)
+                res_right= []
+                res_left= []
+                for x in it_right:
+                    res_right.append(x)
+                for y in it_left:
+                    res_left.append(y)
+                               
+                pool.terminate()
+                pool.join()   
+                duration = time.time()-st_time  
+                
+                results_right = np.zeros((1,1),dtype = np.float64)
+                for k in range(0,len(res_right)):
+                    temp = res_right[k]
+                    results_right = np.append(results_right,temp[1:]) 
+                      
+                results_left = np.zeros((1,1),dtype = np.float64)
+                for k in range(0,len(res_left)):
+                    temp = res_left[k]
+                    results_left = np.append(results_left,temp[1:])   
+    
+                #put everythin togehter 
+                results= np.c_[results_right, results_left]  
+                
+            elif self._resultsInfo._AnalizeResults == 'Right': #only analize the right side of the face 
+                
+                it_right = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
+                                [self._RightROI], [self._LeftROI],
+                                [self._threshold], [self._angles], ['Right'], [rotation_angle])),FilesforProcessing)
 
-            #put everythin togehter 
-            results= np.c_[results_right, results_left]  
+                res_right= []
+                for x in it_right:
+                    res_right.append(x)
+                               
+                pool.terminate()
+                pool.join()   
+                duration = time.time()-st_time  
+                
+                results_right = np.zeros((1,1),dtype = np.float64)
+                for k in range(0,len(res_right)):
+                    temp = res_right[k]
+                    results_right = np.append(results_right,temp[1:]) 
+    
+                #put everythin togehter 
+                results= np.c_[results_right, np.zeros(results_right.shape)]
+                
+            elif self._resultsInfo._AnalizeResults == 'Left': #analize the left side of the face
+                            
+                it_left = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
+                                [self._RightROI], [self._LeftROI],
+                                [self._threshold], [self._angles], ['Left'], [rotation_angle])),FilesforProcessing)
+                res_left= []
+                for y in it_left:
+                    res_left.append(y)
+                               
+                pool.terminate()
+                pool.join()   
+                duration = time.time()-st_time  
+                                 
+                results_left = np.zeros((1,1),dtype = np.float64)
+                for k in range(0,len(res_left)):
+                    temp = res_left[k]
+                    results_left = np.append(results_left,temp[1:])   
+    
+                #put everythin togehter 
+                results= np.c_[np.zeros(results_left.shape), results_left]  
+                
             #remove last element which is zero
             results = results[:-1]   
+                
 
         else: #no parallel processing... seriously!!!
             agents = 1
             st_time = time.time()  
             FilesforProcessing = Files
-            #Right
-           
-            ExtraInformation_right = zip([self._foldername], [self._FaceCenter], 
-                            [self._RightROI], [self._LeftROI],
-                            [self._threshold], [self._angles], ['Right'])
+            if self._resultsInfo._AnalizeResults == 'Both': #analize both sides of the face
+                
+                results_right = rot_estimation(FilesforProcessing, zip([self._foldername], [self._FaceCenter], 
+                                [self._RightROI], [self._LeftROI],
+                                [self._threshold], [self._angles], ['Right'], [rotation_angle]))
+                #print('Right_np')
+                
+                results_left = rot_estimation(FilesforProcessing, zip([self._foldername], [self._FaceCenter], 
+                                [self._RightROI], [self._LeftROI],
+                                [self._threshold], [self._angles], ['Left'], [rotation_angle]))
+                #print('Left_np')
+                duration = time.time()-st_time 
+                
+                #put everythin togehter 
+                results= np.c_[results_right, results_left] 
+                
+            elif self._resultsInfo._AnalizeResults == 'Right': #only analize the right side of the face
+                
+                results_right = rot_estimation(FilesforProcessing, zip([self._foldername], [self._FaceCenter], 
+                                [self._RightROI], [self._LeftROI],
+                                [self._threshold], [self._angles], ['Right'], [rotation_angle]))
 
-            ExtraInformation_left = zip([self._foldername], [self._FaceCenter], 
-                            [self._RightROI], [self._LeftROI],
-                            [self._threshold], [self._angles], ['Left'])
-            
-            results_right = rot_estimation(FilesforProcessing, ExtraInformation_right)
-            #print('Right_np')
-            
-            results_left = rot_estimation(FilesforProcessing, ExtraInformation_left)
-            #print('Left_np')
-            duration = time.time()-st_time 
-            
-            #put everythin togehter 
-            results= np.c_[results_right, results_left] 
+                duration = time.time()-st_time 
+                
+                #put everythin togehter 
+                results= np.c_[results_right, np.zeros(results_right.shape)]
+                
+            elif self._resultsInfo._AnalizeResults == 'Left': #analize the left side of the face
+                
+                results_left = rot_estimation(FilesforProcessing, zip([self._foldername], [self._FaceCenter], 
+                                [self._RightROI], [self._LeftROI],
+                                [self._threshold], [self._angles], ['Left'], [rotation_angle]))
+                #print('Left_np')
+                duration = time.time()-st_time 
+                
+                #put everythin togehter 
+                results= np.c_[np.zeros(results_left.shape), results_left]
         
-                                            
-                                                                                             
+                                                                                            
         #submit results to the main window 
         self.Results.emit(results, duration, agents)
         #now inform that is over
@@ -434,7 +504,9 @@ class AnalysisWindow(QDialog):
         
         self._Pool = 0 #this is the processor pool, if no parallel process then is just 0
         
-        self.Processing = True 
+        self.Processing = True #controls the poor's man "progress bar"
+        
+        self.Canceled = True #informs if the operation was canceled
         
         self._duration = 0
         self._agents = 1 
@@ -552,7 +624,7 @@ class AnalysisWindow(QDialog):
         #Connect Thread started signal to Worker operational slot method
         self.thread_frames.started.connect(self.FrameAna.ProcessFrames)
         #connect signal emmited by landmarks to a function
-        self.FrameAna.Results.connect(self.DisplayProgressBar)
+        self.FrameAna.Results.connect(self.GetResultsFromProcess)
         #define the end of the thread
         self.FrameAna.finished.connect(self.thread_frames.quit)
         
@@ -564,14 +636,78 @@ class AnalysisWindow(QDialog):
         return 
 
 
-    def DisplayProgressBar(self, results, duration, agents):
+    def GetResultsFromProcess(self, results, duration, agents):
         self._agents = agents
         self._results = results
         self._duration = duration
         self.Processing = False
+        #update progress bar one last time
         self.UpdateProgressBar()
         
+        #if finilized then do signal analysis 
+        self.SignalAnalysis()
+             
         return
+    
+    def SignalAnalysis(self):
+        FPS = self._ResultsInfo._camera_fps
+        SubSampling = self._ResultsInfo._subSampling
+        
+        
+        Fs= FPS/SubSampling #Sampling Frequency 
+        
+        Niq_Fs = Fs/2 #Niquist Frequency (Half of sampling Frequency)
+        
+        high_pass_frequency = Niq_Fs/2 - Niq_Fs*0.1 #low-pass filter at half the niquist frequency minus 10% to remove high-frequency noise 
+        
+        low_pass_frequency = Niq_Fs*0.002  #high-pass filter at 0.2% of the niquist frequency to remove tren added by the numerical integration
+        
+        #filters
+        b, a = signal.butter(2, high_pass_frequency, btype = 'low')
+        c, d = signal.butter(2, low_pass_frequency, btype = 'high')
+        
+        if self._ResultsInfo._AnalizeResults == 'Both':            
+            #Right Side
+            temp = None
+            temp = signal.lfilter(b, a, self._results[:,0]) #low pass to remove noise
+            temp =  np.cumsum(temp) #cumsum to compute overall angle change
+            self._results[:,0] = signal.lfilter(c, d, temp) #high pass to remove trend 
+            #Left Side
+            temp = None
+            temp = signal.lfilter(b, a, self._results[:,1])#low pass to remove noise
+            temp =  np.cumsum(temp) #cumsum to compute overall angle change
+            self._results[:,1] =  signal.lfilter(c, d, temp) #high pass to remove trend 
+            
+        elif self._ResultsInfo._AnalizeResults == 'Right':
+            #Right Side
+            temp = None
+            temp = signal.lfilter(b, a, self._results[:,0]) #low pass to remove noise
+            temp =  np.cumsum(temp) #cumsum to compute overall angle change
+            self._results[:,0] = signal.lfilter(c, d, temp) #high pass to remove trend 
+       
+        elif self._ResultsInfo._AnalizeResults == 'Left':
+            #Left Side
+            temp = None
+            temp = signal.lfilter(b, a, self._results[:,1])#low pass to remove noise
+            temp =  np.cumsum(temp) #cumsum to compute overall angle change
+            self._results[:,1] =  signal.lfilter(c, d, temp) #high pass to remove trend 
+            
+        
+        #if requested then save data in a csv file
+        if self._SaveInfo._SaveResults:
+            np.savetxt(self._SaveInfo._FileName, self._results, delimiter=",", header='Right Side,Left Side', fmt= '%1.10f', comments='')
+
+        
+        return
+        
+        fig = plt.figure()
+        ax1 = fig.add_subplot(211)
+        ax1.plot(self._results[:,0])
+        ax2 = fig.add_subplot(212)
+        ax2.plot(self._results[:,1])
+        
+        
+
         
     def UpdateProgressBar(self):
         
@@ -602,18 +738,25 @@ class AnalysisWindow(QDialog):
 #        
 
     def Cancel(self):
-        
+        #terminate the processors pool and the extra thread (this will prevent the program from crashing--I hope...) 
         if self._Pool:
             self._Pool.terminate()
             self._Pool.join() 
+            self._Pool = None
         if self.thread_frames.isRunning():
-            self.thread_frames.quit
+            self.thread_frames.quit            
             
         self.close()  
 
        
     def closeEvent(self, event):
         
+        if self.Processing is False:
+            self.Canceled = False #process ended normaly, wasn't canceled by the user
+        else:
+            self.Canceled = True #process was canceled by the user
+            
+        #before closing this window, terminate the processors pool and the extra thread (this will prevent the program from crashing--I hope...) 
         if self._Pool:
             self._Pool.terminate()
             self._Pool.join() 

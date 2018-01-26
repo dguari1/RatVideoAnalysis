@@ -44,12 +44,13 @@ class Analize_Data(object):
         self._InitFrame = None
         self._EndFrame = None
         self._subSampling = None
+        self._rotation_angle = None 
 
         
 class ProcessWindow(QDialog):
         
     
-    def __init__(self, List=None, folder=None, RightROI=None, LeftROI=None, FaceCenter=None, threshold = None):
+    def __init__(self, List=None, folder=None, RightROI=None, LeftROI=None, FaceCenter=None, threshold = None, rotation_angle = None):
         super(ProcessWindow, self).__init__()
         
         self._MultiProcessor = True
@@ -84,6 +85,9 @@ class ProcessWindow(QDialog):
             self._EndFrame = 1
         else:
             self._EndFrame = len(List)
+            
+            
+        self._results = None #where results will be stored 
         
                 
         self.initUI()
@@ -532,10 +536,12 @@ class ProcessWindow(QDialog):
         runme = AnalysisWindow(self._List, self._folder, self._RightROI, self._LeftROI, self._FaceCenter, self._threshold, self._angles, parallel, saveInfo, resultsInfo)
         runme.exec_()
         
-        if runme.Canceled is not True:
-            runme = None
+        if runme.Canceled is True: #user canceled the process, let's leave the window open
+            runme = None #remove window from memory        
+        if runme.Canceled is False: #process finished correctly. Collect data and close the window
+            self._results = runme._results
+            runme = None #remove window from memory    
             self.close()
-
     def Cancel(self):
         
         self.Canceled = True

@@ -78,7 +78,7 @@ class QHLine(QtWidgets.QFrame):
         self.setFrameShape(QtWidgets.QFrame.HLine)
         self.setFrameShadow(QtWidgets.QFrame.Sunken)
 
-class MainWindow(QtWidgets.QWidget):
+class MainWindow(QtWidgets.QMainWindow):
     
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -87,6 +87,7 @@ class MainWindow(QtWidgets.QWidget):
         scriptDir = os.getcwd()
         self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'face_icon.ico'))
         self.background_color = self.palette().color(QtGui.QPalette.Background)
+        
         #initialize the User Interface
         self.initUI()
         
@@ -115,12 +116,14 @@ class MainWindow(QtWidgets.QWidget):
 
         #image
         #read the image from file        
-        img_Qt = QtGui.QImage(scriptDir + os.path.sep + 'include' +os.path.sep +'icons'+ os.path.sep + 'face2.png')
+        img_Qt = QtGui.QImage(scriptDir + os.path.sep + 'include' +os.path.sep + 'mid-face.png')
         img_show = QtGui.QPixmap.fromImage(img_Qt)
         
         #the image will be displayed in the custom ImageViewer
         self.displayImage = ImageViewer()      
         self.displayImage.setPhoto(img_show)    
+        
+        self.main_Widget = QtWidgets.QWidget(self)
         
        
         
@@ -135,23 +138,33 @@ class MainWindow(QtWidgets.QWidget):
         FileMenu = MenuBar.addMenu("&File")
         LoadAction = FileMenu.addAction("Select Folder")
         LoadAction.setShortcut("Ctrl+F")
+        LoadAction.setStatusTip('Select folder containing video frames (as .tiff files)')
         LoadAction.triggered.connect(self.load_file)
         
         LoadVideoAction = FileMenu.addAction("Select Video")
         LoadVideoAction.setShortcut("Ctrl+V")
+        LoadVideoAction.setStatusTip('Select video file to store each frame as a tiff file')
         LoadVideoAction.triggered.connect(self.load_video)
         
         LoadSettingsAction = FileMenu.addAction("Load Settings")
         LoadSettingsAction.setShortcut("Ctrl+W")
+        LoadSettingsAction.setStatusTip('Load FaceCenter, left and right ROI, and threshold')
         LoadSettingsAction.triggered.connect(self.loadsettings_function)
         
         SaveSettingsAction = FileMenu.addAction("Save Settings")
         SaveSettingsAction.setShortcut("Ctrl+S")
+        SaveSettingsAction.setStatusTip('Save FaceCenter, left and right ROI, and threshold')
         SaveSettingsAction.triggered.connect(self.save_function)
+        
+        LoadAnglesAction = FileMenu.addAction("Load Angular Displacement")
+        LoadAnglesAction.setShortcut("Ctrl+A")
+        LoadAnglesAction.setStatusTip('Load csv file containing angular displacements')
+        LoadAnglesAction.triggered.connect(self.loadangular_function)
         
         ExitAction = FileMenu.addAction("Quit")
         ExitAction.setShortcut("Ctrl+Q")
         ExitAction.triggered.connect(self.close_app)
+        ExitAction.setStatusTip('Quit')
         
         
         ImageMenu = MenuBar.addMenu("&Image")
@@ -159,9 +172,10 @@ class MainWindow(QtWidgets.QWidget):
         
         
                 
-        FaceCenterAction = ImageMenu.addAction("Find Face Midline")
+        FaceCenterAction = ImageMenu.addAction("Find Face Center")
         FaceCenterAction.setShortcut("Ctrl+C")
         FaceCenterAction.triggered.connect(self.face_center)
+        FaceCenterAction.setStatusTip('Find facial midline and center of whisker pad')
         
         
         ROIMenu = QtWidgets.QMenu("ROI", self)
@@ -169,14 +183,17 @@ class MainWindow(QtWidgets.QWidget):
         
         RigthROIAction = ROIMenu.addAction("Find Right ROI")
         RigthROIAction.setShortcut("Ctrl+R")
+        RigthROIAction.setStatusTip('Find rigth side Region of Interest (ROI)')
         RigthROIAction.triggered.connect(self.RigthROI_function)
         
         LeftROIAction = ROIMenu.addAction("Find Left ROI")        
         LeftROIAction.setShortcut("Ctrl+L")
+        LeftROIAction.setStatusTip('Find left side Region of Interest (ROI)')
         LeftROIAction.triggered.connect(self.LeftROI_function)
         
         MirrorAction = ROIMenu.addAction("Mirror ROI")
         MirrorAction.setShortcut("Ctrl+M")
+        MirrorAction.setStatusTip('Mirror right or left ROI to the other side of the face')
         MirrorAction.triggered.connect(self.Mirror_function)
         
         ImageMenu.addMenu(ROIMenu)
@@ -186,10 +203,12 @@ class MainWindow(QtWidgets.QWidget):
         
         ThresholdAction = ThresholdMenu.addAction("Find Threshold")
         ThresholdAction.setShortcut("Ctrl+T")
+        ThresholdAction.setStatusTip('Find threshold. Image will be converted to gray scale')
         ThresholdAction.triggered.connect(self.threhold_function)
         
         ResetThresholdAction = ThresholdMenu.addAction("Reset Threshold")
         ResetThresholdAction.setShortcut("Ctrl+Y")
+        ResetThresholdAction.setStatusTip('Reset threshold')
         ResetThresholdAction.triggered.connect(self.reset_threshold_function)
         
         ImageMenu.addMenu(ThresholdMenu)
@@ -200,48 +219,64 @@ class MainWindow(QtWidgets.QWidget):
         
         RotationAction = RotationdMenu.addAction("Rotate Image")
         RotationAction.setShortcut("Ctrl+N")
+        RotationAction.setStatusTip('Rotate image using its center as pivot')
         RotationAction.triggered.connect(self.rotate_function)
         
         ResetRotationAction = RotationdMenu.addAction("Reset Rotation")
         ResetRotationAction.setShortcut("Ctrl+M")
+        ResetRotationAction.setStatusTip('Reset rotation')
         ResetRotationAction.triggered.connect(self.reset_rotate_function)
         
         ImageMenu.addMenu(RotationdMenu)
         
         ScreenshotAction = ImageMenu.addAction("Take Screenshot")
         ScreenshotAction.setShortcut("Ctrl+W")
+        ScreenshotAction.setStatusTip('Save current view')
         ScreenshotAction.triggered.connect(self.Screenshot_function)
         
         VideoMenu = MenuBar.addMenu("&Video")
         ForwardAction = VideoMenu.addAction("Move Forward")
         ForwardAction.setShortcut("Shift+D")
+        ForwardAction.setStatusTip('Move forward one frame')
         ForwardAction.triggered.connect(self.Forward_function)
                
         BackwardAction = VideoMenu.addAction("Move Backward")
         BackwardAction.setShortcut("Shift+A")
+        BackwardAction.setStatusTip('Move backward one frame')
         BackwardAction.triggered.connect(self.Backward_function)
         
         PlayAction = VideoMenu.addAction("Play Movie")
         PlayAction.setShortcut("Shift+Z")
+        PlayAction.setStatusTip('Play movie')
         PlayAction.triggered.connect(self.Play_function)
         
         StopAction = VideoMenu.addAction("Stop Movie")
         StopAction.setShortcut("Shift+S")
+        StopAction.setStatusTip('Stop movie')
         StopAction.triggered.connect(self.Stop_function)
         
         GotoAction = VideoMenu.addAction("GoTo Frame")
         GotoAction.setShortcut("Shift+F")
+        GotoAction.setStatusTip('Go to a specific frame')
         GotoAction.triggered.connect(self.goto_function)
         
         SpeedAction = VideoMenu.addAction("PlayBack Speed")
         SpeedAction.setShortcut("Shift+P")
+        SpeedAction.setStatusTip('Define playback speed for video reproduction')
         SpeedAction.triggered.connect(self.speed_function)
         
-        ProcessMenu = MenuBar.addMenu("&Process")
+        ProcessMenu = MenuBar.addMenu("&Analysis")
         
         ProcessAction = ProcessMenu.addAction("Start Tracking")
         ProcessAction.setShortcut("Ctrl+G")
+        ProcessAction.setStatusTip('Estimate whisker angular displacement')
         ProcessAction.triggered.connect(self.process_function)
+        
+        
+        PlotAction = ProcessMenu.addAction("Plot Results")
+        PlotAction.setShortcut("Ctrl+P")
+        PlotAction.setStatusTip('Plot estimated angular displacement')
+        #ProcessAction.triggered.connect(self.plot_function)
         
         
 
@@ -249,12 +284,15 @@ class MainWindow(QtWidgets.QWidget):
         #the main window consist of the toolbar and the ImageViewer
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(MenuBar)
-        layout.addWidget(QHLine())
+        #layout.addWidget(QHLine())
         layout.addWidget(self.displayImage)
-        self.setLayout(layout)
+        #self.setLayout(layout)
+        self.main_Widget.setLayout(layout)
         
+        self.setCentralWidget(self.main_Widget)
 
         self.resize(800, 650)
+        self.statusBar()
         self.show()
    
     def load_file(self):
@@ -371,6 +409,20 @@ class MainWindow(QtWidgets.QWidget):
                 
                 #show the photo
                 self.displayImage.setPhoto(img_show) 
+                
+    def loadangular_function(self):
+        if self.timer.isActive(): #verify is the video is running 
+            #stop playback
+            self.timer.stop()
+        if (self._current_Image is not None) and (self._FileList is not None):
+            
+            name,_ = QtWidgets.QFileDialog.getOpenFileName(self,'Load CVS file','',"CSV Files(*.csv)")
+                with open(name, newline='') as f:
+                    reader = csv.reader(f)
+            
+            
+            
+        
         
                 
     def save_function(self):
