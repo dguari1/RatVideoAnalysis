@@ -70,7 +70,7 @@ class ProcessWindow(QDialog):
         self._SubSample = 1 
         self._minAngle = -3.5
         self._maxAngle = 3.5
-        self._NumAngles = 100
+        self._NumAngles = 50
         self._angles = np.array([],dtype = np.float)
         
         self._List = List
@@ -88,6 +88,8 @@ class ProcessWindow(QDialog):
             
             
         self._results = None #where results will be stored 
+        
+        self.Canceled = True
         
                 
         self.initUI()
@@ -219,7 +221,7 @@ class ProcessWindow(QDialog):
 #        self._CheckButtonGroupSave.addButton(self._check_results_yes,1)
 #        self._CheckButtonGroupSave.addButton(self._check_results_no,2)
         
-        self._label_results2 = QLabel('Camera Frames per Second:')
+        self._label_results2 = QLabel('Samples per Second:')
         self._label_results2.setFont(newfont)
         self._label_results2.setFixedWidth(250)     
         self._spinBox_fps =  QSpinBox()
@@ -540,6 +542,7 @@ class ProcessWindow(QDialog):
             runme = None #remove window from memory        
         if runme.Canceled is False: #process finished correctly. Collect data and close the window
             self._results = runme._results
+            self.Canceled = False
             runme = None #remove window from memory    
             self.close()
     def Cancel(self):

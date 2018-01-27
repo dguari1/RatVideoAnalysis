@@ -11,7 +11,7 @@ import cv2
 import time
 import numpy as np
 from scipy import signal 
-import matplotlib.pyplot as plt
+
 
 from multiprocessing import Pool
 from functools import partial
@@ -653,18 +653,18 @@ class AnalysisWindow(QDialog):
         FPS = self._ResultsInfo._camera_fps
         SubSampling = self._ResultsInfo._subSampling
         
-        
-        Fs= FPS/SubSampling #Sampling Frequency 
-        
+
+        Fs= (FPS)/SubSampling #Sampling Frequency 
         Niq_Fs = Fs/2 #Niquist Frequency (Half of sampling Frequency)
         
-        high_pass_frequency = Niq_Fs/2 - Niq_Fs*0.1 #low-pass filter at half the niquist frequency minus 10% to remove high-frequency noise 
+        low_pass_frequency = Niq_Fs/2 - Niq_Fs*0.1 #low-pass filter at half the niquist frequency minus 10% to remove high-frequency noise 
         
-        low_pass_frequency = Niq_Fs*0.002  #high-pass filter at 0.2% of the niquist frequency to remove tren added by the numerical integration
+        high_pass_frequency = Niq_Fs*0.002  #high-pass filter at 0.2% of the niquist frequency to remove tren added by the numerical integration
+        
         
         #filters
-        b, a = signal.butter(2, high_pass_frequency, btype = 'low')
-        c, d = signal.butter(2, low_pass_frequency, btype = 'high')
+        b, a = signal.butter(2, low_pass_frequency/Niq_Fs, btype = 'low')
+        c, d = signal.butter(2, high_pass_frequency/Niq_Fs, btype = 'high')
         
         if self._ResultsInfo._AnalizeResults == 'Both':            
             #Right Side
@@ -677,7 +677,6 @@ class AnalysisWindow(QDialog):
             temp = signal.lfilter(b, a, self._results[:,1])#low pass to remove noise
             temp =  np.cumsum(temp) #cumsum to compute overall angle change
             self._results[:,1] =  signal.lfilter(c, d, temp) #high pass to remove trend 
-            
         elif self._ResultsInfo._AnalizeResults == 'Right':
             #Right Side
             temp = None
@@ -692,19 +691,17 @@ class AnalysisWindow(QDialog):
             temp =  np.cumsum(temp) #cumsum to compute overall angle change
             self._results[:,1] =  signal.lfilter(c, d, temp) #high pass to remove trend 
             
-        
-        #if requested then save data in a csv file
+
+        #if requested, then save data in a csv file
+        time_vector = np.linspace(self._ResultsInfo._InitFrame-1, self._ResultsInfo._EndFrame, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
+        self._results = np.c_[time_vector*(1/Fs), self._results]
         if self._SaveInfo._SaveResults:
-            np.savetxt(self._SaveInfo._FileName, self._results, delimiter=",", header='Right Side,Left Side', fmt= '%1.10f', comments='')
+            np.savetxt(self._SaveInfo._FileName, self._results, delimiter=",", header='Time (s),Right Side,Left Side', fmt= '%1.10f', comments='')
 
         
         return
         
-        fig = plt.figure()
-        ax1 = fig.add_subplot(211)
-        ax1.plot(self._results[:,0])
-        ax2 = fig.add_subplot(212)
-        ax2.plot(self._results[:,1])
+
         
         
 

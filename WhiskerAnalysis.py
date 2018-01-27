@@ -8,6 +8,7 @@ import os
 import sys
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 from PyQt5 import QtWidgets, QtGui, QtCore
 
@@ -156,7 +157,7 @@ class MainWindow(QtWidgets.QMainWindow):
         SaveSettingsAction.setStatusTip('Save FaceCenter, left and right ROI, and threshold')
         SaveSettingsAction.triggered.connect(self.save_function)
         
-        LoadAnglesAction = FileMenu.addAction("Load Angular Displacement")
+        LoadAnglesAction = FileMenu.addAction("Load Results")
         LoadAnglesAction.setShortcut("Ctrl+A")
         LoadAnglesAction.setStatusTip('Load csv file containing angular displacements')
         LoadAnglesAction.triggered.connect(self.loadangular_function)
@@ -276,7 +277,7 @@ class MainWindow(QtWidgets.QMainWindow):
         PlotAction = ProcessMenu.addAction("Plot Results")
         PlotAction.setShortcut("Ctrl+P")
         PlotAction.setStatusTip('Plot estimated angular displacement')
-        #ProcessAction.triggered.connect(self.plot_function)
+        PlotAction.triggered.connect(self.plot_function)
         
         
 
@@ -415,14 +416,23 @@ class MainWindow(QtWidgets.QMainWindow):
             #stop playback
             self.timer.stop()
         if (self._current_Image is not None) and (self._FileList is not None):
-            
-            name,_ = QtWidgets.QFileDialog.getOpenFileName(self,'Load CVS file','',"CSV Files(*.csv)")
-                with open(name, newline='') as f:
-                    reader = csv.reader(f)
-            
-            
-            
-        
+            if (self._FaceCenter is not None):
+                
+                name,_ = QtWidgets.QFileDialog.getOpenFileName(self,'Load CVS file','',"CSV Files(*.csv)")
+                #verify the files by reading its first line 
+                f = open(name,'r')
+                line = f.readline()
+                f.close()
+                line = str(line)
+                if 'Time' in line:
+                    if 'Right' in line:
+                        if 'Left' in line:
+                            self._results = np.loadtxt(name, delimiter=',', skiprows=1)
+                            return
+                else:
+                    QtWidgets.QMessageBox.warning(self, 'Error','Incorrect File')
+                    return
+       
         
                 
     def save_function(self):
@@ -912,6 +922,13 @@ class MainWindow(QtWidgets.QMainWindow):
                             Process = ProcessWindow(List=self._FileList, folder=self._Folder, RightROI=self._RightROI, LeftROI=self._LeftROI, FaceCenter=self._FaceCenter, threshold = self._threshold)
                             Process.exec_()
                             
+                            if Process.Canceles is True :
+                                self._results = None
+                                pass
+                            else:
+                                self._results = Process._results
+                                
+                            
                         else:
 
                             QtWidgets.QMessageBox.warning(self, 'Error','Left ROI not defined')
@@ -932,6 +949,59 @@ class MainWindow(QtWidgets.QMainWindow):
                 return
                                 
      
+    def plot_function(self):
+        if self._results is not None:
+            right = np.sum(self._results[:,1])
+            left = np.sum(self._results[:,2])
+            
+            max_r = max(self._results[:,1])
+            max_l = max(self._results[:,2])
+            max_max = max(max_r,max_l)
+            lim_max = max_max+0.1*max_max
+            min_r = min(self._results[:,1])
+            min_l = min(self._results[:,2])
+            min_min = min(min_r,min_l)
+            lim_mim = min_min+0.1*min_min
+            
+            lim = max(abs(lim_max), abs(lim_mim))
+            
+            if right != 0 and left != 0 :                
+                #both sides
+                fig = plt.figure()
+                ax1 = fig.add_subplot(211)
+                ax1.plot(self._results[:,0], self._results[:,1])
+                ax1.set_ylabel('Displacement (deg)')
+                ax1.set_title('Right Side')
+                ax1.set_ylim(-lim,lim)
+                ax1.set_xticks([]) 
+                ax2 = fig.add_subplot(212)
+                ax2.plot(self._results[:,0],self._results[:,2])
+                ax2.set_ylabel('Displacement (deg)')
+                ax2.set_xlabel('Time (s)')
+                ax2.set_title('Left Side')
+                ax2.set_ylim(-lim,lim)
+                
+            elif right != 0 and left == 0 :
+                fig = plt.figure()
+                ax1 = fig.add_subplot(111)
+                ax1.plot(self._results[:,0], self._results[:,1])
+                ax1.set_ylabel('Displacement (deg)')
+                ax1.set_title('Right Side')
+                ax1.set_xlabel('Time (s)')
+                ax1.set_ylim(-lim,lim)
+                
+            elif right == 0 and left != 0 :
+                fig = plt.figure()
+                ax1 = fig.add_subplot(111)
+                ax1.plot(self._results[:,0], self._results[:,2])
+                ax1.set_ylabel('Displacement (deg)')
+                ax1.set_title('Left Side')
+                ax1.set_xlabel('Time (s)')
+                ax1.set_ylim(-lim,lim)
+                
+        
+        
+    
     def Screenshot_function(self):
         #save the current view 
         if (self._current_Image is not None) :
