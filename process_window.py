@@ -60,7 +60,7 @@ class ProcessWindow(QDialog):
         else:
             self._NumAgents = 1
             
-        self._SaveWaveforms = True
+        self._SaveWaveforms = False
         self._FileName = None
         
         self._AnalizeResults = 'Both'
@@ -88,6 +88,7 @@ class ProcessWindow(QDialog):
             
             
         self._results = None #where results will be stored 
+        self._hasAngle = None #variable that will inform if there is angle information for a particular frame
         
         self.Canceled = True
         
@@ -346,10 +347,10 @@ class ProcessWindow(QDialog):
         spacerv.setFixedSize(0,20)
         layout.addWidget(spacerv)
         
-        layout.addWidget(SaveBox)
-        spacerv = QtWidgets.QWidget(self)
-        spacerv.setFixedSize(0,20)
-        layout.addWidget(spacerv)
+#        layout.addWidget(SaveBox)
+#        spacerv = QtWidgets.QWidget(self)
+#        spacerv.setFixedSize(0,20)
+#        layout.addWidget(spacerv)
         
         layout.addWidget(ResultsBox)
         spacerv = QtWidgets.QWidget(self)
@@ -434,20 +435,22 @@ class ProcessWindow(QDialog):
         else:
             self._MultiProcessor = False
             self._NumAgents = self._spinBox_process.value()
-    
-        #Save Data
-        if not self._check_save_yes.isChecked():
-            self._FileName = None
-        else:
-            fileName =  self._SelectFile.text()
-            if fileName == '':
-                QtWidgets.QMessageBox.warning(self, 'Error','Missing file name for data storage')
-                return
-            else:
-                head, tail = os.path.splitext(fileName)
-                if tail != '.csv':
-                    QtWidgets.QMessageBox.warning(self, 'Error','Invalid file name for data storage')
-                    return
+#    
+#        #Save Data
+#        if not self._check_save_yes.isChecked():
+#            self._FileName = None
+#            self._SaveWaveforms = False
+#        else:
+#            fileName =  self._SelectFile.text()
+#            if fileName == '':
+#                QtWidgets.QMessageBox.warning(self, 'Error','Missing file name for data storage')
+#                return
+#            else:
+#                head, tail = os.path.splitext(fileName)
+#                if tail != '.csv':
+#                    QtWidgets.QMessageBox.warning(self, 'Error','Invalid file name for data storage')
+#                    return
+#            self._SaveWaveforms = True
 
         #Results
         if self._check_results_right.isChecked() and self._check_results_left.isChecked():
@@ -542,6 +545,7 @@ class ProcessWindow(QDialog):
             runme = None #remove window from memory        
         if runme.Canceled is False: #process finished correctly. Collect data and close the window
             self._results = runme._results
+            self._hasAngle = runme._hasAngle
             self.Canceled = False
             runme = None #remove window from memory    
             self.close()

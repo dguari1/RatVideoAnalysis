@@ -284,11 +284,7 @@ class FramesAnalysis(QObject):
         self._parallel = parallel
         self._resultsInfo = resultsInfo
         self._Pool = pool
-        
-        
-        
-        
-        
+
     @pyqtSlot()
     def ProcessFrames(self):
        
@@ -511,6 +507,7 @@ class AnalysisWindow(QDialog):
         self._duration = 0
         self._agents = 1 
         self._results = None
+        self._hasAngle = None #variable that will inform if there is angle information for a particular frame
 
         self.initUI()
         
@@ -640,9 +637,6 @@ class AnalysisWindow(QDialog):
         self._agents = agents
         self._results = results
         self._duration = duration
-        self.Processing = False
-        #update progress bar one last time
-        self.UpdateProgressBar()
         
         #if finilized then do signal analysis 
         self.SignalAnalysis()
@@ -665,7 +659,6 @@ class AnalysisWindow(QDialog):
         #filters
         b, a = signal.butter(2, low_pass_frequency/Niq_Fs, btype = 'low')
         c, d = signal.butter(2, high_pass_frequency/Niq_Fs, btype = 'high')
-        
         if self._ResultsInfo._AnalizeResults == 'Both':            
             #Right Side
             temp = None
@@ -676,7 +669,8 @@ class AnalysisWindow(QDialog):
             temp = None
             temp = signal.lfilter(b, a, self._results[:,1])#low pass to remove noise
             temp =  np.cumsum(temp) #cumsum to compute overall angle change
-            self._results[:,1] =  signal.lfilter(c, d, temp) #high pass to remove trend 
+            self._results[:,1] =  signal.lfilter(c, d, temp) #high pass to remove trend
+            
         elif self._ResultsInfo._AnalizeResults == 'Right':
             #Right Side
             temp = None
@@ -690,13 +684,25 @@ class AnalysisWindow(QDialog):
             temp = signal.lfilter(b, a, self._results[:,1])#low pass to remove noise
             temp =  np.cumsum(temp) #cumsum to compute overall angle change
             self._results[:,1] =  signal.lfilter(c, d, temp) #high pass to remove trend 
-            
+        
+        
+        #we need to inform to the main program what frames have been processed and what frames haven't 
+        #this will simplify presentation of results
+        self._hasAngle = [False]*len(self._List) 
+        temp = [True]*len(self._selectedList)
+        self._hasAngle[self._ResultsInfo._InitFrame-1:self._ResultsInfo._EndFrame:self._ResultsInfo._subSampling] = temp
+        
 
         #if requested, then save data in a csv file
-        time_vector = np.linspace(self._ResultsInfo._InitFrame-1, self._ResultsInfo._EndFrame, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
+        time_vector = np.linspace(self._ResultsInfo._InitFrame-1, self._ResultsInfo._EndFrame-1, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
         self._results = np.c_[time_vector*(1/Fs), self._results]
-        if self._SaveInfo._SaveResults:
-            np.savetxt(self._SaveInfo._FileName, self._results, delimiter=",", header='Time (s),Right Side,Left Side', fmt= '%1.10f', comments='')
+#        if self._SaveInfo._SaveResults:
+#            np.savetxt(self._SaveInfo._FileName, self._results, delimiter=",", header='Time (s),Right Side,Left Side', fmt= '%1.10f', comments='')
+#          
+            
+        self.Processing = False
+        #update progress bar one last time and ask user to close it 
+        self.UpdateProgressBar()     
 
         
         return

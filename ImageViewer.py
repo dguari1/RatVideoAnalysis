@@ -50,7 +50,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
         self._temp_storage = [] #this is a variable that is used to store temporary data... :)
 
         
-    def setPhoto(self, pixmap = None):
+    def setPhoto(self, pixmap = None, result = None):
         #this function puts an image in the scece (if pixmap is not None), it
         #sets the zoom to zero 
         self._zoom = 0        
@@ -58,6 +58,18 @@ class ImageViewer(QtWidgets.QGraphicsView):
             self.setDragMode(QtWidgets.QGraphicsView.RubberBandDrag)
             self._photo.setPixmap(pixmap)
             self.fitInView()
+            
+            if (result is not None) and (self._FaceCenter is not None):
+                for item in self._scene.items():
+                        if isinstance(item, QtWidgets.QGraphicsLineItem):
+                            if item.pen().color() == QtCore.Qt.blue:
+                                self._scene.removeItem(item)
+                
+                l_bar = int(self._FaceCenter[1]*0.75)
+                dy_right= l_bar*np.tan(result[0]*np.pi/180)
+                dy_left= l_bar*np.tan(result[1]*np.pi/180)
+                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]-l_bar, int(self._FaceCenter[1]-dy_right),1,3)
+                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]+l_bar, int(self._FaceCenter[1]-dy_left),1,3)
         else:
             self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
             self._photo.setPixmap(QtGui.QPixmap())
@@ -263,9 +275,17 @@ class ImageViewer(QtWidgets.QGraphicsView):
         QtWidgets.QGraphicsView.mouseMoveEvent(self, event)
             
     
-    def draw_line(self,x0,y0,x1,y1):
-        pen = QtGui.QPen(QtCore.Qt.green)
-        pen.setWidth(2)
+    def draw_line(self,x0,y0,x1,y1, Type=None, dim=None):
+        
+        if Type is None:
+            pen = QtGui.QPen(QtCore.Qt.green)
+        else:
+            pen = QtGui.QPen(QtCore.Qt.blue)
+            
+        if dim is None:
+            pen.setWidth(2)
+        else:
+            pen.setWidth(dim)   
         pen.setStyle(QtCore.Qt.SolidLine)
         self._scene.addLine(QtCore.QLineF(x0,y0,x1,y1), pen)
     
@@ -411,7 +431,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     
     def draw_from_txt(self, FaceCenter, RightROI, leftROI):
         #draw in screen from information read from txt file
-        self._FaceCenter = FaceCenter[0]        
+        self._FaceCenter = FaceCenter    
         self._RightROI = RightROI
         self._LeftROI = leftROI
         
@@ -466,7 +486,12 @@ class ImageViewer(QtWidgets.QGraphicsView):
             else:
                 self._scene.removeItem(item)
         
-        
+    def clean_results(self):
+        #clean results from sreen 
+        for item in self._scene.items():
+            if isinstance(item, QtWidgets.QGraphicsLineItem):
+                if item.pen().color() == QtCore.Qt.blue:
+                    self._scene.removeItem(item)
 
         
             

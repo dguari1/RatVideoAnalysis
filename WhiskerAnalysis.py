@@ -9,6 +9,7 @@ import sys
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle
 
 from PyQt5 import QtWidgets, QtGui, QtCore
 
@@ -24,9 +25,6 @@ from process_window import ProcessWindow
 from video_window import VideoWindow
 
 from rotation_window import RotationAngleWindow
-
-from save_utils import SaveTXT
-from save_utils import ReadTXT
 
 
 def get_pixmap(image, threshold=None, rotation_angle = None):
@@ -44,7 +42,7 @@ def get_pixmap(image, threshold=None, rotation_angle = None):
             height, width, channel = image.shape
             bytesPerLine = 3 * width
             img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
-        elif len(image.shape) == 2: #gary image
+        elif len(image.shape) == 2: #gray image
             height, width = image.shape
             bytesPerLine = 1 * width
             img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
@@ -73,11 +71,19 @@ def get_pixmap(image, threshold=None, rotation_angle = None):
             
     
 
-class QHLine(QtWidgets.QFrame):
+class StoreResults(object):
     def __init__(self):
-        super(QHLine, self).__init__()
-        self.setFrameShape(QtWidgets.QFrame.HLine)
-        self.setFrameShadow(QtWidgets.QFrame.Sunken)
+        self._validator ='WhiskerAnalysisV0.0--diego_guarin@meei.harvard.edu'
+        self._FaceCenter = None #stores position of face center
+        self._RightROI = None #stores position of right ROI
+        self._LeftROI = None #stores position of left ROI
+        self._threshold = None #threshold for image processing 
+        self._rotation_angle = None #rotation angle 
+        
+        self._hasAngle = None #variable that will inform if there is angle information for a particular frame        
+        self._results = None #results of estimating the whiskers angular displacement
+        
+        
 
 class MainWindow(QtWidgets.QMainWindow):
     
@@ -102,11 +108,16 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self._FrameIndex = 0  #Frame Index
         self._FileList = None #list of files to be processed
+        self._hasAngle = None #variable that will inform if there is angle information for a particular frame
         self._Folder = None #folder where photos are located 
         
         self._fps = 24  #this variable controls the playback speed
         
         self._rotation_angle = None #rotation angle 
+        
+        self._results = None #results of estimating the whiskers angular displacement
+        self._count_angle = 0 #variable that will take care of the presentation of resuls 
+        self._sent_angle = None #angle value that is sent for drawing
         
         self.timer = QtCore.QTimer()  #controls video playback 
         
@@ -142,25 +153,27 @@ class MainWindow(QtWidgets.QMainWindow):
         LoadAction.setStatusTip('Select folder containing video frames (as .tiff files)')
         LoadAction.triggered.connect(self.load_file)
         
-        LoadVideoAction = FileMenu.addAction("Select Video")
-        LoadVideoAction.setShortcut("Ctrl+V")
-        LoadVideoAction.setStatusTip('Select video file to store each frame as a tiff file')
-        LoadVideoAction.triggered.connect(self.load_video)
         
-        LoadSettingsAction = FileMenu.addAction("Load Settings")
+        LoadSettingsAction = FileMenu.addAction("Load Whisker File")
         LoadSettingsAction.setShortcut("Ctrl+W")
-        LoadSettingsAction.setStatusTip('Load FaceCenter, left and right ROI, and threshold')
+        LoadSettingsAction.setStatusTip('Load FaceCenter, left and right ROI, threshold, and angular displacements from propietary .whisker file')
         LoadSettingsAction.triggered.connect(self.loadsettings_function)
         
-        SaveSettingsAction = FileMenu.addAction("Save Settings")
+        SaveSettingsAction = FileMenu.addAction("Save Whisker File")
         SaveSettingsAction.setShortcut("Ctrl+S")
-        SaveSettingsAction.setStatusTip('Save FaceCenter, left and right ROI, and threshold')
+        SaveSettingsAction.setStatusTip('Save FaceCenter, left and right ROI, threshold, and angular displacements to propietary .whisker file')
         SaveSettingsAction.triggered.connect(self.save_function)
         
-        LoadAnglesAction = FileMenu.addAction("Load Results")
-        LoadAnglesAction.setShortcut("Ctrl+A")
-        LoadAnglesAction.setStatusTip('Load csv file containing angular displacements')
-        LoadAnglesAction.triggered.connect(self.loadangular_function)
+                        
+        ExportCSVAction = FileMenu.addAction("Export to csv")
+        ExportCSVAction.setShortcut("Ctrl+E")
+        ExportCSVAction.setStatusTip('Export estimated angular displacements to csv file for oppening in other plotting and analysis software (Matlab, GraphPad Prism, ...)')
+        ExportCSVAction.triggered.connect(self.ExportCSV_function)
+        
+        LoadVideoAction = FileMenu.addAction("Select Video")
+        LoadVideoAction.setShortcut("Ctrl+V")
+        LoadVideoAction.setStatusTip('Select video file. Each frame will be store as a tiff file in a new folder')
+        LoadVideoAction.triggered.connect(self.load_video)       
         
         ExitAction = FileMenu.addAction("Quit")
         ExitAction.setShortcut("Ctrl+Q")
@@ -279,13 +292,17 @@ class MainWindow(QtWidgets.QMainWindow):
         PlotAction.setStatusTip('Plot estimated angular displacement')
         PlotAction.triggered.connect(self.plot_function)
         
+        ResetResultsAction = ProcessMenu.addAction("Reset Results")
+        ResetResultsAction.setShortcut("Ctrl+X")
+        ResetResultsAction.setStatusTip('Eliminate estimated angular displacement values from memory')
+        ResetResultsAction.triggered.connect(self.reset_function)
+        
         
 
         
         #the main window consist of the toolbar and the ImageViewer
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(MenuBar)
-        #layout.addWidget(QHLine())
         layout.addWidget(self.displayImage)
         #self.setLayout(layout)
         self.main_Widget.setLayout(layout)
@@ -333,7 +350,7 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
         else:
             Files = os.listdir(name)            
-            ext=('.png', '.jpg', '.jpeg', '.bmp','tif', 'tiff', '.PNG', '.JPG', '.JPEG', '.BMP', 'TIF', 'TIFF')
+            ext=('.png', '.jpg', '.jpeg', '.bmp','tif', 'tiff', '.PNG', '.JPG', '.JPEG', '.BMP', '.TIF', '.TIFF')
             Files = [i for i in Files if i.endswith(tuple(ext))]
             
             if not Files: #no items in the folder, print a critiall error message 
@@ -341,12 +358,22 @@ class MainWindow(QtWidgets.QMainWindow):
                             'Selected folder does not contain valid files.\nPlease select another folder.')
             else:  #there are files
                 #reset everything 
+                self.displayImage._isFaceCenter = False #variable that indicates if the face center will be localized
+                self.displayImage._FaceCenter = None #this variable defines the point selected as the face center        
+                self.displayImage._isRightROI = False #variable that indicates if the right ROI will be localized 
+                self.displayImage._RightROI = None #variable that stores the points selected as right ROI
+                self.displayImage._isLeftROI = False #variable that indicates if the left ROI will be localized 
+                self.displayImage._LeftROI = None #variable that stores the points selected as left ROI
+                
                 self._threshold = None #threshold for image processing     
                 
                 self._FaceCenter = None #stores position of face center
                 self._RightROI = None #stores position of right ROI
                 self._LeftROI = None #stores position of left ROI
-                
+
+                self._results = None #rotation angle 
+                self._count_angle = 0 #variable that will take care of the presentation of resuls 
+                self._sent_angle = None #angle value that is sent for drawing
                 #and clean scene
                 self.displayImage.clean_scene()
                       
@@ -354,14 +381,19 @@ class MainWindow(QtWidgets.QMainWindow):
                 Files.sort()            
                 self._FrameIndex = 0
                 self._FileList = Files
+                self._hasAngle = [False]*len(self._FileList) #no angles for recently uploaded frames
                 self._Folder = name
+                
+                self._rotation_angle = None #rotation angle 
+        
+   
                 #and pick the first one 
                 temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
                 image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
                 self._current_Image = image
-                
+
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
-                
+
                 #show the photo
                 self.displayImage.setPhoto(img_show)  
                 
@@ -410,30 +442,31 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 #show the photo
                 self.displayImage.setPhoto(img_show) 
-                
-    def loadangular_function(self):
-        if self.timer.isActive(): #verify is the video is running 
+    
+    def ExportCSV_function(self):
+        if self.timer.isActive(): #verify if the video is running 
             #stop playback
             self.timer.stop()
-        if (self._current_Image is not None) and (self._FileList is not None):
-            if (self._FaceCenter is not None):
-                
-                name,_ = QtWidgets.QFileDialog.getOpenFileName(self,'Load CVS file','',"CSV Files(*.csv)")
-                #verify the files by reading its first line 
-                f = open(name,'r')
-                line = f.readline()
-                f.close()
-                line = str(line)
-                if 'Time' in line:
-                    if 'Right' in line:
-                        if 'Left' in line:
-                            self._results = np.loadtxt(name, delimiter=',', skiprows=1)
-                            return
-                else:
-                    QtWidgets.QMessageBox.warning(self, 'Error','Incorrect File')
-                    return
-       
         
+        if (self._current_Image is not None) and (self._FileList is not None):
+ 
+            if self._results is not None:
+ 
+                name,_ = QtWidgets.QFileDialog.getSaveFileName(self, 'Select File to Save', '',"Comma-separated values  (*.csv)")
+
+                if not name:
+                    pass
+                else:
+                    name = os.path.normpath(name)
+                    np.savetxt(name, self._results, delimiter=",", header='Time (s),Right Side,Left Side', fmt= '%1.10f', comments='')
+                    
+                    head,tail = os.path.split(name)           
+                            
+                    self._FileName = name
+                    
+                    self._SelectFile.setText(tail)
+                    self.update()
+
                 
     def save_function(self):
         if (self._current_Image is not None) and (self._FileList is not None):
@@ -443,35 +476,29 @@ class MainWindow(QtWidgets.QMainWindow):
                 pass
             else:
                 name = os.path.normpath(name)
+                
+                #store all avaliable data in a special class and store that class in memory in a .whisker file. File name is provided by user
+                
+                ToSave = StoreResults()
+                ToSave._FaceCenter = self._FaceCenter
+                ToSave._RightROI = self._RightROI  
+                ToSave._LeftROI = self._LeftROI
+                ToSave._threshold = self._threshold
+                ToSave._rotation_angle = self._rotation_angle 
+        
+                ToSave._hasAngle = self._hasAngle 
+        
+                ToSave._results = self._results
+                
+                pickle_out = open(name,"wb")
+                pickle.dump(ToSave, pickle_out)
+                pickle_out.close()
+                
+                #remove file from memory, it is not needed any more
+                ToSave = None
+                
+                return
     
-                #if (self._threshold is not None):
-                    #copy everything from the image
-                self._FaceCenter = self.displayImage._FaceCenter
-                self._RightROI = self.displayImage._RightROI
-                self._LeftROI = self.displayImage._LeftROI
-                if (self._FaceCenter is not None):
-
-                    if (self._RightROI is not None):
-
-                        if (self._LeftROI is not None):
-
-                            SaveTXT(name = name, RightROI=self._RightROI, LeftROI=self._LeftROI, FaceCenter=self._FaceCenter, threshold = self._threshold)
-                            
-                        else:
-
-                            QtWidgets.QMessageBox.warning(self, 'Error','Left ROI not defined')
-                            return
-                    else:
-
-                        QtWidgets.QMessageBox.warning(self, 'Error','Right ROI not defined')
-                        return
-                else:
-
-                    QtWidgets.QMessageBox.warning(self, 'Error','Face midline not defined')
-                    return
-                #else:
-                #    QtWidgets.QMessageBox.warning(self, 'Error','Threshold not defined')
-                #    return
    
     def loadsettings_function(self):
         
@@ -483,24 +510,54 @@ class MainWindow(QtWidgets.QMainWindow):
                 pass
             else:       
                 name = os.path.normpath(name)
-                self._FaceCenter, self._threshold, self._RightROI, self._LeftROI   =  ReadTXT(name)
-                img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
-                    
-                #show the photo
-                self.displayImage.setPhoto(img_show)  
-                self.displayImage.draw_from_txt(self._FaceCenter, self._RightROI, self._LeftROI)
                 
+                #load .whisker file and put avlaible data in memory 
+                
+                pickle_in = open(name,"rb")
+                From_File= pickle.load(pickle_in)
+                
+                if 'WhiskerAnalysis' in From_File._validator:
+                    pass
+                else:
+                    QtWidgets.QMessageBox.warning(self, 'Error','Incorrect File Type')
+                    return
+                    
+             
+                self._FaceCenter = From_File._FaceCenter
+                self._RightROI = From_File._RightROI  
+                self._LeftROI = From_File._LeftROI
+                self._threshold = From_File._threshold
+                self._rotation_angle = From_File._rotation_angle
+                self._hasAngle = From_File._hasAngle 
+                self._results = From_File._results
+                #remove file from memory, it is not needed any more
+                From_File = None
+                
+                
+#                #show the photo
+                self.displayImage.draw_from_txt(self._FaceCenter, self._RightROI, self._LeftROI) 
+                self._count_angle = sum(self._hasAngle[0:self._FrameIndex])
+                img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
+                #show the photo
+                if self._hasAngle[self._FrameIndex]:
+                    self._sent_angle = self._results[self._count_angle,1:3]
+                    print(self._sent_angle)
+                    self.displayImage.setPhoto(img_show, self._sent_angle)                     
+                else:
+                    self.displayImage.setPhoto(img_show, self._sent_angle)  
+
+        return
                     
     def Forward_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
             #stop playback
             self.timer.stop()
-        
+
         #move the video forward
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
-                if self._FrameIndex < len(self._FileList):
+                if self._FrameIndex < len(self._FileList)-1:
                     self._FrameIndex += 1
                     temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
                     image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
@@ -509,9 +566,17 @@ class MainWindow(QtWidgets.QMainWindow):
                     img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
                     
                     #show the photo
-                    self.displayImage.setPhoto(img_show)  
+                    #self.displayImage.setPhoto(img_show)  
+                    #show the photo
                     
-                
+                    if self._hasAngle[self._FrameIndex]:
+                        self._count_angle += 1
+                        self._sent_angle = self._results[self._count_angle,1:3]
+                        self.displayImage.setPhoto(img_show, self._sent_angle)                        
+                    else:
+                        self.displayImage.setPhoto(img_show, self._sent_angle)  
+                        
+                    print(self._FrameIndex,self._count_angle,self._hasAngle[self._FrameIndex])
 
     def Backward_function(self):
         #stop playback if active
@@ -531,7 +596,18 @@ class MainWindow(QtWidgets.QMainWindow):
                     img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
                     
                     #show the photo
-                    self.displayImage.setPhoto(img_show)  
+                    #self.displayImage.setPhoto(img_show)  
+                    #show the photo
+                    if self._hasAngle[self._FrameIndex]:     
+                        self._count_angle -= 1
+                        self._sent_angle = self._results[self._count_angle,1:3]
+                        self.displayImage.setPhoto(img_show, self._sent_angle) 
+                        
+                        
+                    else:
+                        self.displayImage.setPhoto(img_show, self._sent_angle)  
+                    
+                    print(self._FrameIndex,self._count_angle,self._hasAngle[self._FrameIndex])
                     
                     
     def Play_function(self):
@@ -545,7 +621,7 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def nextFrame_function(self):
                
-        if self._FrameIndex < len(self._FileList):
+        if self._FrameIndex < len(self._FileList)-1:
             self._FrameIndex += 1
             temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
             image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
@@ -554,7 +630,13 @@ class MainWindow(QtWidgets.QMainWindow):
             img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
             
             #show the photo
-            self.displayImage.setPhoto(img_show) 
+            if self._hasAngle[self._FrameIndex]:
+                self._count_angle += 1
+                self._sent_angle = self._results[self._count_angle,1:3]
+                self.displayImage.setPhoto(img_show, self._sent_angle) 
+                
+            else:
+                self.displayImage.setPhoto(img_show, self._sent_angle)    
         else:
             self.timer.stop()    
             
@@ -567,7 +649,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.timer.stop()
                   
                     
-    def goto_function(self):
+    def goto_function(self, FrameIndex=None):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
             #stop playback
@@ -575,22 +657,41 @@ class MainWindow(QtWidgets.QMainWindow):
         
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
-                self.goto = GoToWindow(self._FileList, self._FrameIndex)
-                self.goto.exec_()
-                
-                if self.goto.Canceled is False:
-                    #update threshold 
-                    self._FrameIndex = self.goto._FrameIndex 
+                if FrameIndex is None:
+                    self.goto = GoToWindow(self._FileList, self._FrameIndex)
+                    self.goto.exec_()
+                    
+                    if self.goto.Canceled is False:
+                        #update threshold 
+                        self._FrameIndex = self.goto._FrameIndex 
+                        temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
+                        image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+                        self._current_Image = image
+                        
+                        img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
+                        
+                        #show the photo
+                        self.displayImage.setPhoto(img_show)  
+                    else:
+                        pass
+                else:
+                    self._FrameIndex = FrameIndex
                     temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
                     image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
                     self._current_Image = image
-                    
+                        
                     img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
-                    
+                    print(1)   
                     #show the photo
-                    self.displayImage.setPhoto(img_show)  
-                else:
-                    pass
+                    if self._hasAngle[self._FrameIndex]:
+                        self._sent_angle = self._results[self._count_angle,1:3]
+                        self.displayImage.setPhoto(img_show, self._sent_angle) 
+                        
+                    else:
+                        self.displayImage.setPhoto(img_show, self._sent_angle)    
+                    #self._sent_angle = self._results[self._count_angle,1:3]
+                    #self.displayImage.setPhoto(img_show,self._sent_angle) 
+                    
                             
     def speed_function(self):
 
@@ -922,11 +1023,23 @@ class MainWindow(QtWidgets.QMainWindow):
                             Process = ProcessWindow(List=self._FileList, folder=self._Folder, RightROI=self._RightROI, LeftROI=self._LeftROI, FaceCenter=self._FaceCenter, threshold = self._threshold)
                             Process.exec_()
                             
-                            if Process.Canceles is True :
+                            if Process.Canceled is True :
                                 self._results = None
                                 pass
                             else:
                                 self._results = Process._results
+                                self._hasAngle = Process._hasAngle
+                                
+                                self._InitFrame = Process._InitFrame-1
+                                self._EndFrame = Process._EndFrame
+                                self._SubSample = Process._SubSample
+                                
+                                self._count_angle = 0
+                                
+                                #now re-draw everything starting from the frame that was analized 
+                                
+                                self.goto_function(self._InitFrame)
+                                
                                 
                             
                         else:
@@ -999,8 +1112,27 @@ class MainWindow(QtWidgets.QMainWindow):
                 ax1.set_xlabel('Time (s)')
                 ax1.set_ylim(-lim,lim)
                 
+    def reset_function(self):
+        #eliminate current results from memory and clean results from screen
+        if self.timer.isActive(): #verify if the video is running 
+            #stop playback            
+            self.timer.stop()
         
+        #ask is the user really wants to close the app
+        choice = QtWidgets.QMessageBox.question(self, 'Message', 
+                            'Do you want to remove estimated angular dispacements from memory?', QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
         
+        if choice == QtWidgets.QMessageBox.Yes :
+            self._results = None
+            self._hasAngle = [False]*len(self._FileList)            
+            self._count_angle = 0 #variable that will take care of the presentation of resuls 
+            self._sent_angle = None #angle value that is sent for drawing
+            self.displayImage.clean_results()
+            
+        else:
+            pass  
+    
+        return
     
     def Screenshot_function(self):
         #save the current view 
