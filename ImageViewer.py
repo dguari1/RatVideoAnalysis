@@ -12,13 +12,16 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 
 """
 This class is in charge of drawing the picture and the landmarks in the main 
 window, it also takes care of lifting and re-location of landmarks. 
 """
 
-class ImageViewer(QtWidgets.QGraphicsView):       
+class ImageViewer(QtWidgets.QGraphicsView):  
+
+    signalEmit = pyqtSignal(object)    
     
     def __init__(self):
         #usual parameters to make sure the image can be zoom-in and out and is 
@@ -47,10 +50,14 @@ class ImageViewer(QtWidgets.QGraphicsView):
         self._isLeftROI = False #variable that indicates if the left ROI will be localized 
         self._LeftROI = None #variable that stores the points selected as left ROI
         
+        
+        self._isManualEstimation = False
+        self._rad = None
+        
         self._temp_storage = [] #this is a variable that is used to store temporary data... :)
 
-        
-    def setPhoto(self, pixmap = None, result = None):
+
+    def setPhotoFirstTime(self, pixmap = None, result = None):
         #this function puts an image in the scece (if pixmap is not None), it
         #sets the zoom to zero 
         self._zoom = 0        
@@ -58,6 +65,27 @@ class ImageViewer(QtWidgets.QGraphicsView):
             self.setDragMode(QtWidgets.QGraphicsView.RubberBandDrag)
             self._photo.setPixmap(pixmap)
             self.fitInView()
+            
+            if (result is not None) and (self._FaceCenter is not None):
+                for item in self._scene.items():
+                        if isinstance(item, QtWidgets.QGraphicsLineItem):
+                            if item.pen().color() == QtCore.Qt.blue:
+                                self._scene.removeItem(item)
+                
+                l_bar = int(self._FaceCenter[1]*0.75)
+                dy_right= l_bar*np.tan(result[0]*np.pi/180)
+                dy_left= l_bar*np.tan(result[1]*np.pi/180)
+                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]-l_bar, int(self._FaceCenter[1]-dy_right),1,3)
+                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]+l_bar, int(self._FaceCenter[1]-dy_left),1,3)
+        else:
+            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+            self._photo.setPixmap(QtGui.QPixmap())
+        
+    def setPhoto(self, pixmap = None, result = None):
+        #this function puts an image in the scece (if pixmap is not None),   
+        if pixmap and not pixmap.isNull():
+            self.setDragMode(QtWidgets.QGraphicsView.RubberBandDrag)
+            self._photo.setPixmap(pixmap)
             
             if (result is not None) and (self._FaceCenter is not None):
                 for item in self._scene.items():
@@ -113,7 +141,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
                 self.fitInView()
    
 
-                   
+    @pyqtSlot()              
     def mousePressEvent(self, event):
         
         
@@ -163,6 +191,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     self._RightROI = np.asarray(self._temp_storage) #save the ROI limits as an np array. This is useful for math operations with it
                     if len(self._temp_storage) > 2:
                         self.draw_polygon(self._temp_storage)
+                    self._temp_storage = []
           
             elif self._isLeftROI is True: #user if going to input the points for the left ROI
                 
@@ -186,7 +215,54 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     self._LeftROI = np.asarray(self._temp_storage) #save the ROI limits as an np array. This is useful for math operations with it
                     if len(self._temp_storage) > 2:
                         self.draw_polygon(self._temp_storage)
-
+                    self._temp_storage = []
+                        
+            elif self._isManualEstimation is True: #the user wants to start manual marking 
+                
+                if event.button() == QtCore.Qt.LeftButton: #this will only works with left click
+                
+                    self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+                    
+                    
+                    scenePos = self.mapToScene(event.pos()) #take the position of the mouse
+                    x_mousePos = scenePos.toPoint().x()
+                    y_mousePos = scenePos.toPoint().y()
+                    
+                    
+                    
+                    if self._rad is not None: 
+                        rad = np.sqrt((self._FaceCenter[0]-x_mousePos)**2 + (self._FaceCenter[1]-y_mousePos)**2)
+                        if abs(rad - self._rad) > 1:
+                            self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
+                        else:                    
+                            for item in self._scene.items():
+                                if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
+                                    if item.pen().color() == QtCore.Qt.red:
+                                        self._scene.removeItem(item)
+                                            
+                            self._temp_storage.append((x_mousePos,y_mousePos))
+                            self.draw_circle([x_mousePos,y_mousePos,1], 'small')
+                            self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
+                            
+                    else:
+                            self._rad = np.sqrt((self._FaceCenter[0]-x_mousePos)**2 + (self._FaceCenter[1]-y_mousePos)**2)
+                            self.draw_circle([self._FaceCenter[0],self._FaceCenter[1],self._rad], 'big')
+                            self._temp_storage.append((x_mousePos,y_mousePos))
+                            self.draw_circle([x_mousePos,y_mousePos,1], 'small')
+                            self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
+                    
+                
+                elif event.button() == QtCore.Qt.RightButton: #on right button just finish
+                    
+                    self._isManualEstimation = False
+                    self._rad = None
+                    for item in self._scene.items():
+                        if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
+                            self._scene.removeItem(item)
+                            
+                    #self.signalEmit.emit(np.asarray(self._temp_storage))
+                    self._temp_storage = []
                         
             elif event.button() == QtCore.Qt.LeftButton:
                     
@@ -212,6 +288,9 @@ class ImageViewer(QtWidgets.QGraphicsView):
             self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         
+        elif self._isManualEstimation is True:
+            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+            self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         
 
         QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
@@ -266,7 +345,13 @@ class ImageViewer(QtWidgets.QGraphicsView):
                 if self._FaceCenter is not None:
                     #remove the Drag  and change cursor
                     self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
-                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))                
+                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))      
+                    
+            elif self._isLeftROI is True:
+                if self._FaceCenter is not None:
+                    #remove the Drag  and change cursor
+                    self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                    self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))  
             
             #else:
             #   self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
@@ -302,24 +387,37 @@ class ImageViewer(QtWidgets.QGraphicsView):
         self._scene.addItem(TextItem)
         
 
-    def draw_circle(self, CircleInformation ):
+    def draw_circle(self, CircleInformation, circletype = None ):
         #this function draws an circle with specific center and radius 
         
         Ellipse = QtWidgets.QGraphicsEllipseItem(0,0,CircleInformation[2]*2,CircleInformation[2]*2)
-        #ellipse will be red
-        pen = QtGui.QPen(QtCore.Qt.red)
-        #set the ellipse line width according to the image size
-        if self._scene.height() < 1000:
-            pen.setWidth(1)
-        else:
-            pen.setWidth(3)
-            
-        Ellipse.setPen(pen)      
-        #if I want to fill the ellipse i should do this:
-        brush = QtGui.QBrush(QtCore.Qt.red) 
-        Ellipse.setBrush(brush)
-
         
+        if circletype is None: #draw a point
+            #ellipse will be red
+            pen = QtGui.QPen(QtCore.Qt.red)
+            #set the ellipse line width according to the image size
+            if self._scene.height() < 1000:
+                pen.setWidth(1)
+            else:
+                pen.setWidth(3)
+                
+            Ellipse.setPen(pen)      
+            #if I want to fill the ellipse i should do this:
+            brush = QtGui.QBrush(QtCore.Qt.red) 
+            Ellipse.setBrush(brush)
+        elif circletype == 'big':
+            #ellipse will be yellow
+            pen = QtGui.QPen(QtCore.Qt.yellow)
+            pen.setWidth(1)
+            Ellipse.setPen(pen)   
+        elif circletype == 'small':
+            #ellipse will be yellow
+            pen = QtGui.QPen(QtCore.Qt.red)
+            pen.setWidth(1)
+            Ellipse.setPen(pen)
+            brush = QtGui.QBrush(QtCore.Qt.red) 
+            Ellipse.setBrush(brush)
+              
         #this is the position of the top-left corner of the ellipse.......
         Ellipse.setPos(CircleInformation[0]-CircleInformation[2],CircleInformation[1]-CircleInformation[2])
         Ellipse.setTransform(QtGui.QTransform())        

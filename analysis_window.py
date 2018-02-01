@@ -686,19 +686,15 @@ class AnalysisWindow(QDialog):
             self._results[:,1] =  signal.lfilter(c, d, temp) #high pass to remove trend 
         
         
-        #we need to inform to the main program what frames have been processed and what frames haven't 
-        #this will simplify presentation of results
-        self._hasAngle = [False]*len(self._List) 
-        temp = [True]*len(self._selectedList)
-        self._hasAngle[self._ResultsInfo._InitFrame-1:self._ResultsInfo._EndFrame:self._ResultsInfo._subSampling] = temp
-        
-
         #if requested, then save data in a csv file
         time_vector = np.linspace(self._ResultsInfo._InitFrame-1, self._ResultsInfo._EndFrame-1, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
         self._results = np.c_[time_vector*(1/Fs), self._results]
-#        if self._SaveInfo._SaveResults:
-#            np.savetxt(self._SaveInfo._FileName, self._results, delimiter=",", header='Time (s),Right Side,Left Side', fmt= '%1.10f', comments='')
-#          
+    
+    
+        #we need to inform to the main program what frames have been processed and what frames haven't 
+        #this will simplify presentation of results
+        self._hasAngle = [None]*len(self._List) 
+        self._hasAngle[self._ResultsInfo._InitFrame-1:self._ResultsInfo._EndFrame:self._ResultsInfo._subSampling] = self._results
             
         self.Processing = False
         #update progress bar one last time and ask user to close it 

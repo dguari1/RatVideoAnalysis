@@ -13,6 +13,8 @@ import pickle
 
 from PyQt5 import QtWidgets, QtGui, QtCore
 
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+
 #add an option to load and save parameters
 
 
@@ -25,6 +27,7 @@ from process_window import ProcessWindow
 from video_window import VideoWindow
 
 from rotation_window import RotationAngleWindow
+from Test_window import TestWindow
 
 
 def get_pixmap(image, threshold=None, rotation_angle = None):
@@ -108,7 +111,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self._FrameIndex = 0  #Frame Index
         self._FileList = None #list of files to be processed
-        self._hasAngle = None #variable that will inform if there is angle information for a particular frame
+        self._hasAngle = None #variable that will inform if there is angle information for a particular frame. If that information exist then this variable will carry it
         self._Folder = None #folder where photos are located 
         
         self._fps = 24  #this variable controls the playback speed
@@ -116,8 +119,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._rotation_angle = None #rotation angle 
         
         self._results = None #results of estimating the whiskers angular displacement
-        self._count_angle = 0 #variable that will take care of the presentation of resuls 
         self._sent_angle = None #angle value that is sent for drawing
+        
+        self._temp_storage = None #variable that will be used to store results temporarily 
         
         self.timer = QtCore.QTimer()  #controls video playback 
         
@@ -297,53 +301,60 @@ class MainWindow(QtWidgets.QMainWindow):
         ResetResultsAction.setStatusTip('Eliminate estimated angular displacement values from memory')
         ResetResultsAction.triggered.connect(self.reset_function)
         
+        TestParametersAction = ProcessMenu.addAction("Test Parameters")
+        TestParametersAction.setShortcut("Ctrl+P")
+        TestParametersAction.setStatusTip('Test parameters using two frames')
+        TestParametersAction.triggered.connect(self.testParams_function)
         
+        ManualEstimationAction = ProcessMenu.addAction("Manual estimation")
+        ManualEstimationAction.setShortcut("Ctrl+P")
+        ManualEstimationAction.setStatusTip('Test parameters using two frames')
+        ManualEstimationAction.triggered.connect(self.ManualEstimation_function)
 
+        
+        #slider
+        self._slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self._slider.setMinimum(1)
+        self._slider.setMaximum(100)
+        self._slider.setValue(1)
+#        self.sl.setTickPosition(QSlider.TicksBelow)
+        self._slider.setTickInterval(1)
+        self._slider.setEnabled(False)
+        self._slider.valueChanged.connect(self.SliderValueChange)
+        
         
         #the main window consist of the toolbar and the ImageViewer
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(MenuBar)
         layout.addWidget(self.displayImage)
+        layout.addWidget(self._slider)
+        
+        
         #self.setLayout(layout)
         self.main_Widget.setLayout(layout)
         
         self.setCentralWidget(self.main_Widget)
 
-        self.resize(800, 650)
-        self.statusBar()
+        
+        
+        self.resize(750, 650)
+        #Status Bar
+        self._framelabel = QtWidgets.QLabel('')
+        self._framelabel.setFont(QtGui.QFont("Times", 10))
+        statusBar = QtWidgets.QStatusBar()
+        statusBar.setFont(QtGui.QFont("Times", 10))
+        self.setStatusBar(statusBar)
+        statusBar.addPermanentWidget(self._framelabel)
         self.show()
    
     def load_file(self):
         
-#        #load a file using the widget
-#        name,_ = QtWidgets.QFileDialog.getOpenFileName(
-#                self,'Load Image',
-#                '',"Image files (*.png *.jpg *.jpeg *.tif *.tiff *.PNG *.JPG *.JPEG *.TIF *.TIFF)")
-#        
-#        if not name:
-#            pass
-#        else:
-#            temp_image  = cv2.imread(name)
-#            image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
-#            self._current_Image = image
-#            #separate color and gray images
-#            if len(image.shape) == 3: #color image
-#                height, width, channel = image.shape
-#                bytesPerLine = 3 * width
-#                img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
-#            elif len(image.shape) == 2: #gary image
-#                height, width = image.shape
-#                bytesPerLine = 1 * width
-#                img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
-#            img_show = QtGui.QPixmap.fromImage(img_Qt)
-#            
-#            #show the photo
-#            self.displayImage.setPhoto(img_show)    
-        
         #stop playback if active
-        if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+        if self.timer.isActive(): #verify if the video is running 
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         name = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select directory')
         if not name:
@@ -381,10 +392,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 Files.sort()            
                 self._FrameIndex = 0
                 self._FileList = Files
-                self._hasAngle = [False]*len(self._FileList) #no angles for recently uploaded frames
+                self._hasAngle = [None]*len(self._FileList) #no angles for recently uploaded frames
                 self._Folder = name
                 
                 self._rotation_angle = None #rotation angle 
+                
+                self._slider.setMinimum(1)
+                self._slider.setMaximum(len(self._FileList))
+                self._slider.setValue(1)
+                self._slider.setEnabled(True)
         
    
                 #and pick the first one 
@@ -395,12 +411,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
 
                 #show the photo
-                self.displayImage.setPhoto(img_show)  
+                self.displayImage.setPhotoFirstTime(img_show)  
+                self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
                 
     def load_video(self):
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
             
         name,_ = QtWidgets.QFileDialog.getOpenFileName(self,'Load Video','',"Video Files(*.avi *.mp4 *.AVI *.MP4)")
             
@@ -414,39 +433,66 @@ class MainWindow(QtWidgets.QMainWindow):
             if VidWin.Canceled:
                 pass
             else : 
-                #reset everything 
-                self._threshold = None #threshold for image processing     
-                
-                self._FaceCenter = None #stores position of face center
-                self._RightROI = None #stores position of right ROI
-                self._LeftROI = None #stores position of left ROI
-                
-                #and clean scene
-                self.displayImage.clean_scene()
-
                 
                 name = VidWin._newfolder
                 Files = os.listdir(name)            
                 ext=('.png', '.jpg', '.jpeg', '.bmp','tif', 'tiff', '.PNG', '.JPG', '.JPEG', '.BMP', 'TIF', 'TIFF')
                 Files = [i for i in Files if i.endswith(tuple(ext))]
                 
+                #reset everything 
+                self.displayImage._isFaceCenter = False #variable that indicates if the face center will be localized
+                self.displayImage._FaceCenter = None #this variable defines the point selected as the face center        
+                self.displayImage._isRightROI = False #variable that indicates if the right ROI will be localized 
+                self.displayImage._RightROI = None #variable that stores the points selected as right ROI
+                self.displayImage._isLeftROI = False #variable that indicates if the left ROI will be localized 
+                self.displayImage._LeftROI = None #variable that stores the points selected as left ROI
+                
+                self._threshold = None #threshold for image processing     
+                
+                self._FaceCenter = None #stores position of face center
+                self._RightROI = None #stores position of right ROI
+                self._LeftROI = None #stores position of left ROI
+
+                self._results = None #rotation angle 
+                self._count_angle = 0 #variable that will take care of the presentation of resuls 
+                self._sent_angle = None #angle value that is sent for drawing
+                #and clean scene
+                self.displayImage.clean_scene()
+                      
+                #sort the files
+                Files.sort()            
+                self._FrameIndex = 0
                 self._FileList = Files
+                self._hasAngle = [None]*len(self._FileList) #no angles for recently uploaded frames
                 self._Folder = name
+                
+                self._rotation_angle = None #rotation angle 
+                
+                self._slider.setMinimum(1)
+                self._slider.setMaximum(len(self._FileList))
+                self._slider.setValue(1)
+                self._slider.setEnabled(True)
+                
+        
+   
                 #and pick the first one 
                 temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
                 image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
                 self._current_Image = image
-                
+
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
-                
-                
+
                 #show the photo
-                self.displayImage.setPhoto(img_show) 
+                self.displayImage.setPhotoFirstTime(img_show)   
+                #update status bar with the frame number 
+                self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
     
     def ExportCSV_function(self):
         if self.timer.isActive(): #verify if the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         if (self._current_Image is not None) and (self._FileList is not None):
  
@@ -538,21 +584,24 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.displayImage.draw_from_txt(self._FaceCenter, self._RightROI, self._LeftROI) 
                 self._count_angle = sum(self._hasAngle[0:self._FrameIndex])
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
-                #show the photo
-                if self._hasAngle[self._FrameIndex]:
-                    self._sent_angle = self._results[self._count_angle,1:3]
-                    print(self._sent_angle)
-                    self.displayImage.setPhoto(img_show, self._sent_angle)                     
+                #show the photo and angular displacements if avaliable
+                if self._hasAngle[self._FrameIndex] is not None:
+                    self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                    self.displayImage.setPhoto(img_show, self._sent_angle)                        
                 else:
-                    self.displayImage.setPhoto(img_show, self._sent_angle)  
+                    #self._sent_angle = None
+                    self.displayImage.setPhoto(img_show, self._sent_angle) 
+                    
 
         return
                     
     def Forward_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
 
         #move the video forward
         if self._current_Image is not None: #verify that there is an image on screen
@@ -565,24 +614,25 @@ class MainWindow(QtWidgets.QMainWindow):
                     
                     img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
                     
-                    #show the photo
-                    #self.displayImage.setPhoto(img_show)  
-                    #show the photo
-                    
-                    if self._hasAngle[self._FrameIndex]:
-                        self._count_angle += 1
-                        self._sent_angle = self._results[self._count_angle,1:3]
+                    #show the photo and angular displacements if avaliable
+                    if self._hasAngle[self._FrameIndex] is not None:
+                        self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
                         self.displayImage.setPhoto(img_show, self._sent_angle)                        
                     else:
+                        #self._sent_angle = None
                         self.displayImage.setPhoto(img_show, self._sent_angle)  
                         
-                    print(self._FrameIndex,self._count_angle,self._hasAngle[self._FrameIndex])
+                    self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
+                    self._slider.setValue(self._FrameIndex+1)
+                
 
     def Backward_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         #move the video backwards
         if self._current_Image is not None: #verify that there is an image on screen
@@ -595,26 +645,24 @@ class MainWindow(QtWidgets.QMainWindow):
                     
                     img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
                     
-                    #show the photo
-                    #self.displayImage.setPhoto(img_show)  
-                    #show the photo
-                    if self._hasAngle[self._FrameIndex]:     
-                        self._count_angle -= 1
-                        self._sent_angle = self._results[self._count_angle,1:3]
-                        self.displayImage.setPhoto(img_show, self._sent_angle) 
-                        
-                        
+
+                    #show the photo and angular displacements if avaliable
+                    if self._hasAngle[self._FrameIndex] is not None:
+                        self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                        self.displayImage.setPhoto(img_show, self._sent_angle)                        
                     else:
-                        self.displayImage.setPhoto(img_show, self._sent_angle)  
+                        #self._sent_angle = None
+                        self.displayImage.setPhoto(img_show, self._sent_angle) 
                     
-                    print(self._FrameIndex,self._count_angle,self._hasAngle[self._FrameIndex])
-                    
+                    self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                    self._slider.setValue(self._FrameIndex+1)
+                
                     
     def Play_function(self):
         #play the frames as video
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
-                        
+                    self._slider.setEnabled(False)
                     self.timer.timeout.connect(self.nextFrame_function)
                     self.timer.start(1000.0/self._fps)
    
@@ -629,24 +677,33 @@ class MainWindow(QtWidgets.QMainWindow):
             
             img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
             
-            #show the photo
-            if self._hasAngle[self._FrameIndex]:
-                self._count_angle += 1
-                self._sent_angle = self._results[self._count_angle,1:3]
-                self.displayImage.setPhoto(img_show, self._sent_angle) 
-                
+            #show the photo and angular displacements if avaliable
+            if self._hasAngle[self._FrameIndex] is not None:
+                self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                self.displayImage.setPhoto(img_show, self._sent_angle)                        
             else:
-                self.displayImage.setPhoto(img_show, self._sent_angle)    
+                #self._sent_angle = None
+                self.displayImage.setPhoto(img_show, self._sent_angle) 
+             
+            
+            self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+
+            
         else:
+            self._slider.setEnabled(True)
             self.timer.stop()    
             
+            
+        
                 
             
     def Stop_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
                   
                     
     def goto_function(self, FrameIndex=None):
@@ -654,10 +711,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.timer.isActive(): #verify is the video is running 
             #stop playback
             self.timer.stop()
-        
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
-                if FrameIndex is None:
+                if FrameIndex is False:
                     self.goto = GoToWindow(self._FileList, self._FrameIndex)
                     self.goto.exec_()
                     
@@ -670,8 +726,13 @@ class MainWindow(QtWidgets.QMainWindow):
                         
                         img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
                         
-                        #show the photo
-                        self.displayImage.setPhoto(img_show)  
+                        #show the photo and angular displacements if avaliable
+                        if self._hasAngle[self._FrameIndex] is not None:
+                            self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                            self.displayImage.setPhoto(img_show, self._sent_angle)                        
+                        else:
+                            #self._sent_angle = None
+                            self.displayImage.setPhoto(img_show, self._sent_angle)       
                     else:
                         pass
                 else:
@@ -680,26 +741,32 @@ class MainWindow(QtWidgets.QMainWindow):
                     image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
                     self._current_Image = image
                         
-                    img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
-                    print(1)   
-                    #show the photo
-                    if self._hasAngle[self._FrameIndex]:
-                        self._sent_angle = self._results[self._count_angle,1:3]
-                        self.displayImage.setPhoto(img_show, self._sent_angle) 
-                        
+                    img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle) 
+                    #show the photo and angular displacements if avaliable
+                    if self._hasAngle[self._FrameIndex] is not None:
+                        self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                        self.displayImage.setPhoto(img_show, self._sent_angle)                        
                     else:
-                        self.displayImage.setPhoto(img_show, self._sent_angle)    
-                    #self._sent_angle = self._results[self._count_angle,1:3]
-                    #self.displayImage.setPhoto(img_show,self._sent_angle) 
-                    
+                        #self._sent_angle = None
+                        self.displayImage.setPhoto(img_show, self._sent_angle)      
+
+                self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
+                self._slider.setValue(self._FrameIndex+1)
+                
+                
+    def SliderValueChange(self):
+        value = self._slider.value()
+        self.goto_function(value-1)
                             
     def speed_function(self):
 
         isActive = False #this variable informs if the video was runnig 
         if self.timer.isActive(): #verify is the video is running 
             isActive = True
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         if self._current_Image is not None: #verify that there is an image on screen
             if self._FileList is not None: #verify that file list is not empy
@@ -720,8 +787,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def RigthROI_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         #allow the user to select multiple points in the right side of the face 
         if self._current_Image is not None:
@@ -754,8 +823,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def LeftROI_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         #allow the user to select multiple points in the right side of the face 
         if self._current_Image is not None:
@@ -792,8 +863,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 #stop playback if active
                 if self.timer.isActive(): #verify is the video is running 
-                    #stop playback
+                    #activate slider and stop playback           
                     self.timer.stop()
+                    self._slider.setEnabled(True)
+                    self._slider.setValue(self._FrameIndex+1)
 
                 #both ROI are present, user needs to define which one will be removed
                 box = QtWidgets.QMessageBox()
@@ -854,8 +927,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def face_center(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         #allow the user to click in some point of the image and draw two lines indicating the center of the face (vertical and horizontal)
         if self._current_Image is not None:
@@ -872,8 +947,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def threhold_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         if self._current_Image is not None:
             
@@ -924,8 +1001,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def rotate_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         if self._current_Image is not None:
             self.rt = RotationAngleWindow(self._rotation_angle)
@@ -960,8 +1039,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def process_function(self):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
             
        
         #verify that ererything exist and is in memory 
@@ -1030,15 +1111,13 @@ class MainWindow(QtWidgets.QMainWindow):
                                 self._results = Process._results
                                 self._hasAngle = Process._hasAngle
                                 
+
                                 self._InitFrame = Process._InitFrame-1
                                 self._EndFrame = Process._EndFrame
                                 self._SubSample = Process._SubSample
                                 
-                                self._count_angle = 0
-                                
                                 #now re-draw everything starting from the frame that was analized 
-                                
-                                self.goto_function(self._InitFrame)
+                                self.goto_function(FrameIndex = self._InitFrame)
                                 
                                 
                             
@@ -1060,7 +1139,89 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 QtWidgets.QMessageBox.warning(self, 'Error','Threshold not defined')
                 return
-                                
+     
+
+
+    def testParams_function(self):
+        #stop playback if active
+        if self.timer.isActive(): #verify is the video is running 
+            #activate slider and stop playback           
+            self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
+            
+       
+        #verify that ererything exist and is in memory 
+        if (self._current_Image is not None) and (self._FileList is not None):
+            #copy everything from the image
+            self._FaceCenter = self.displayImage._FaceCenter
+            self._RightROI = self.displayImage._RightROI
+            self._LeftROI = self.displayImage._LeftROI
+            
+            
+            #get image size, to verify location of ROI and face Center
+            rect = QtCore.QRectF(self.displayImage._photo.pixmap().rect())
+            view_width=rect.width()
+            view_height=rect.height()
+            #print(view_width, view_height)
+            
+            if (self._FaceCenter is not None):
+                #verify position of face center 
+                if self._FaceCenter[0]<0:
+                    QtWidgets.QMessageBox.warning(self, 'Error','Problem with Face Midline')
+                    return
+                if self._FaceCenter[0]>view_width:
+                    QtWidgets.QMessageBox.warning(self, 'Error','Problem with Face Midline')
+                    return
+
+                if (self._RightROI is not None):
+                    
+                    for (x,y) in self._RightROI:
+                        if x < 0:
+                            QtWidgets.QMessageBox.warning(self, 'Error','Problem with Right ROI')
+                            return
+                        if x> view_width/2:
+                            QtWidgets.QMessageBox.warning(self, 'Error','Problem with Right ROI')
+                            return
+                        if y < 0:
+                            QtWidgets.QMessageBox.warning(self, 'Error','Problem with Right ROI')
+                            return
+                        if y > view_height:
+                            QtWidgets.QMessageBox.warning(self, 'Error','Problem with Right ROI')
+                            return
+
+                    if (self._LeftROI is not None):
+                        
+                        for (x,y) in self._LeftROI:
+                            if x < view_width/2:
+                                QtWidgets.QMessageBox.warning(self, 'Error','Problem with Left ROI')
+                                return
+                            if x > view_width:
+                                QtWidgets.QMessageBox.warning(self, 'Error','Problem with Left ROI')
+                                return
+                            if y < 0:
+                                QtWidgets.QMessageBox.warning(self, 'Error','Problem with Left ROI')
+                                return
+                            if y > view_height:
+                                QtWidgets.QMessageBox.warning(self, 'Error','Problem with Left ROI')
+                                return
+
+                        TestW = TestWindow(FileList=self._FileList, Folder=self._Folder, RightROI=self._RightROI, LeftROI=self._LeftROI, FaceCenter=self._FaceCenter)
+                        TestW.exec_()
+                        
+                    else:
+
+                        QtWidgets.QMessageBox.warning(self, 'Error','Left ROI not defined')
+                        return
+                else:
+
+                    QtWidgets.QMessageBox.warning(self, 'Error','Right ROI not defined')
+                    return
+            else:
+
+                QtWidgets.QMessageBox.warning(self, 'Error','Face midline not defined')
+                return
+                          
      
     def plot_function(self):
         if self._results is not None:
@@ -1115,8 +1276,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def reset_function(self):
         #eliminate current results from memory and clean results from screen
         if self.timer.isActive(): #verify if the video is running 
-            #stop playback            
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         #ask is the user really wants to close the app
         choice = QtWidgets.QMessageBox.question(self, 'Message', 
@@ -1134,6 +1297,28 @@ class MainWindow(QtWidgets.QMainWindow):
     
         return
     
+    #@pyqtSlot(object)
+    def ManualEstimation_function(self):
+        if self.timer.isActive(): #verify if the video is running 
+            #activate slider and stop playback           
+            self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
+            
+        if self._current_Image is not None:
+            if self.displayImage._FaceCenter is not None:    
+            
+                self._temp_storage = [None]*len(self._FileList)
+                self.displayImage._isManualEstimation = True 
+                self.displayImage.signalEmit.connect(self.ManualEstimation_update)
+            
+
+    def ManualEstimation_update(self, position):
+        
+        self._hasAngle[self._FrameIndex] = True
+        self._temp_storage[self._FrameIndex] = np.arctan(((position[1]-self._FaceCenter[1])/(self._FaceCenter[0]-position[0]))*np.pi/180)
+        print(self._temp_storage)
+    
     def Screenshot_function(self):
         #save the current view 
         if (self._current_Image is not None) :
@@ -1150,9 +1335,10 @@ class MainWindow(QtWidgets.QMainWindow):
         
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
-            
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         #ask is the user really wants to close the app
         choice = QtWidgets.QMessageBox.question(self, 'Message', 
@@ -1167,8 +1353,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         #stop playback if active
         if self.timer.isActive(): #verify is the video is running 
-            #stop playback
+            #activate slider and stop playback           
             self.timer.stop()
+            self._slider.setEnabled(True)
+            self._slider.setValue(self._FrameIndex+1)
         
         event.accept()
         

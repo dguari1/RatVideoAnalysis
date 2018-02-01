@@ -243,8 +243,6 @@ class ProcessWindow(QDialog):
         validator = QtGui.QIntValidator(self._InitFrame, self._EndFrame)
         self._FramestoAnaalizeInitEdit.setValidator(validator)
     
-        
-        
         self._FramestoAnaalizeEndEdit = QLineEdit(self)
         self._FramestoAnaalizeEndEdit.setText(str(self._EndFrame)) 
         self._FramestoAnaalizeEndEdit.setFont(newfont)

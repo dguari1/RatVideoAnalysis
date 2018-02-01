@@ -151,7 +151,7 @@ class VideoWindow(QDialog):
         
         #a progress bar to show progress
         self._label3 = QLabel('')
-        self._label3.setFont(QtGui.QFont("Times", 20))
+        self._label3.setFont(QtGui.QFont("Times", 25))
         self._label3.setFixedWidth(450)
         self._label3.setAlignment(QtCore.Qt.AlignCenter)
         
