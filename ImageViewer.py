@@ -21,7 +21,8 @@ window, it also takes care of lifting and re-location of landmarks.
 
 class ImageViewer(QtWidgets.QGraphicsView):  
 
-    signalEmit = pyqtSignal(object)    
+    signalEmit = pyqtSignal(object)  
+    finished = pyqtSignal()
     
     def __init__(self):
         #usual parameters to make sure the image can be zoom-in and out and is 
@@ -221,7 +222,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
                 
                 if event.button() == QtCore.Qt.LeftButton: #this will only works with left click
                 
-                    self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                    #self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
                     self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
                     
                     
@@ -233,23 +234,43 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     
                     if self._rad is not None: 
                         rad = np.sqrt((self._FaceCenter[0]-x_mousePos)**2 + (self._FaceCenter[1]-y_mousePos)**2)
-                        if abs(rad - self._rad) > 1:
+                        limit1 = 0.015*self._rad
+                        limit2 = 0.004*self._rad
+                        if abs(rad - self._rad) >= limit1: # click was too far away from circle, user wants to drag the image
+                            
+                            #self.setDragMode(QtWidgets.QGraphicsView.Drag)
                             self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
-                        else:                    
+                            
+                        else:#click was close to the circle, user wants to track whisker                        
+                            #remove the Drag  and change cursor
+                            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                            self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+                            
                             for item in self._scene.items():
                                 if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
-                                    if item.pen().color() == QtCore.Qt.red:
-                                        self._scene.removeItem(item)
+                                    if x_mousePos < self._FaceCenter[0]:
+                                        if item.pen().color() == QtCore.Qt.red and (item.pos().x() < self._FaceCenter[0]):
+                                            self._scene.removeItem(item)
+                                    elif x_mousePos > self._FaceCenter[0]:
+                                        if item.pen().color() == QtCore.Qt.red and (item.pos().x() > self._FaceCenter[0]):
+                                            self._scene.removeItem(item)
+                            
+                            if abs(rad - self._rad) > limit2: #click was just close to the circle but not close enough, modify x_position so that it appears on the circle  
+
+                                if x_mousePos < self._FaceCenter[0]:
+                                    x_mousePos = self._FaceCenter[0] - np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)
+                                else:
+                                    x_mousePos = self._FaceCenter[0] + np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)  
                                             
                             self._temp_storage.append((x_mousePos,y_mousePos))
-                            self.draw_circle([x_mousePos,y_mousePos,1], 'small')
+                            self.draw_circle([x_mousePos,y_mousePos,0.75], 'small')
                             self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
-                            
+                                
                     else:
                             self._rad = np.sqrt((self._FaceCenter[0]-x_mousePos)**2 + (self._FaceCenter[1]-y_mousePos)**2)
                             self.draw_circle([self._FaceCenter[0],self._FaceCenter[1],self._rad], 'big')
                             self._temp_storage.append((x_mousePos,y_mousePos))
-                            self.draw_circle([x_mousePos,y_mousePos,1], 'small')
+                            self.draw_circle([x_mousePos,y_mousePos,0.75], 'small')
                             self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
                     
                 
@@ -260,9 +281,10 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     for item in self._scene.items():
                         if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
                             self._scene.removeItem(item)
-                            
-                    #self.signalEmit.emit(np.asarray(self._temp_storage))
-                    self._temp_storage = []
+                    self._temp_storage = []      
+                    self.finished.emit()
+
+                    
                         
             elif event.button() == QtCore.Qt.LeftButton:
                     
@@ -289,7 +311,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         
         elif self._isManualEstimation is True:
-            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+            #self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         
 
@@ -340,6 +362,12 @@ class ImageViewer(QtWidgets.QGraphicsView):
                         self.draw_line(0,y_mousePos,view_width,y_mousePos)
                         self.draw_line(x_mousePos,0,x_mousePos,view_height)
                         self.draw_text(x_mousePos,y_mousePos)
+                        
+            elif self._isManualEstimation is True: #the user is locating a point around a circle 
+                #remove the Drag  and change cursor
+                #self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+                
                     
             elif self._isRightROI is True:
                 if self._FaceCenter is not None:
