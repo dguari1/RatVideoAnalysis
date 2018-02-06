@@ -1314,59 +1314,115 @@ class MainWindow(QtWidgets.QMainWindow):
         elif position[0]>self._FaceCenter[0]:
             self._temp_storage_left[self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(self._FaceCenter[0]-position[0])))*(180/np.pi)
         
-        self._framelabel.setText('Frame <span style ="color:#ff0000;"> {a} </span> of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        if self._temp_storage_right[self._FrameIndex] is not None:
+            self._framelabel.setText('Frame <span style ="color:#ff0000;">{a}</span> of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                
+        if self._temp_storage_left[self._FrameIndex] is not None:
+            self._framelabel.setText('Frame <span style ="color:#ff0000;background-color: yellow;">{a}</span> of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        
         
    
         #print(self._temp_storage_right, self._temp_storage_right)
         
     def ManualEstimation_end(self):
         
-        
-        
-        valid_index_right = np.where(np.asarray(self._temp_storage_right) != None)[0]
-        valid_index_left = np.where(np.asarray(self._temp_storage_left) != None)[0]
-        print(valid_index_right, valid_index_left)
+        self._temp_storage_right = np.asarray(self._temp_storage_right)
+        self._temp_storage_left = np.asarray(self._temp_storage_left)
+        valid_index_right = np.where(self._temp_storage_right != None)
+        #valid_index_right = np.array(valid_index_right[0], dtype=np.int)
+        valid_index_left = np.where(self._temp_storage_left != None)
+        #valid_index_left = np.array(valid_index_left[0], dtype=np.int)
         #verify that the same number of frames where analyzed in both sides of the face 
-        if len(valid_index_right) != len(valid_index_left): #not the same number of frames analyzed in left and right 
+        if len(valid_index_right[0]) != len(valid_index_left[0]): #not the same number of frames analyzed in left and right 
             QtWidgets.QMessageBox.warning(self, 'Warning','Numbers of frames analyzed in each side of the face is different. Missing information will be filled with Not a Number (NaN).')
-            
-            if len(valid_index_right) > len(valid_index_left): #choose which side has more analized frames and use that
-                valid_index = valid_index_right
-            else:
-                valid_index = valid_index_left    
-        else:#same number of frames analyzed in left and right, take any 
-            valid_index = valid_index_right
-        
-        print(self._temp_storage_right, valid_index)
+            pass
+        else:
+            if sum(valid_index_right[0]) != sum(valid_index_left[0]): #verify that the frames analyzed are the same 
+                QtWidgets.QMessageBox.warning(self, 'Warning','Numbers of frames analyzed in each side of the face is different. Missing information will be filled with Not a Number (NaN).')
+                pass
         
         #self._temp_storage_right = [i for i in self._temp_storage_right if i is not None]
         #self._temp_storage_left = [i for i in self._temp_storage_left if i is not None]
-        
+
         #take only useful index
-        self._temp_storage_right = np.asarray(self._temp_storage_right[valid_index])
-        self._temp_storage_left = np.asarray(self._temp_storage_left[valid_index])
-        
+        self._temp_storage_right = self._temp_storage_right[tuple(valid_index_right)]       
+        self._temp_storage_left= self._temp_storage_left[tuple(valid_index_left)]
         #filters
         b, a = signal.butter(2, 0.25/0.5, btype = 'low')
         c, d = signal.butter(2, 0.001/0.5, btype = 'high')
         
-        time_vector = np.linspace(valid_index[0], valid_index[-1], len(valid_index))
-        self._results = np.c_[time_vector, signal.lfilter(b, a, self._temp_storage_right), signal.lfilter(b, a, self._temp_storage_left)]
-        self._hasAngle[valid_index] = self._results[valid_index]
-        
+       
+        if (len(self._temp_storage_right) >  0) and (len(self._temp_storage_left) ==  0) : # no left data
+            #low-pass filter if there is signal to filter
+            self._temp_storage_right = signal.lfilter(b, a, self._temp_storage_right)
+            #create a time vector that will cover all processed frames
+            time_vector = np.arange(valid_index_right[0][0], valid_index_right[0][-1]+1)
+            #fill results. If a frame was skipped just leave a nan 
+            right = [np.nan]*len(time_vector)
+            count = 0
+            for k in valid_index_right[0]:
+                right[k] = self._temp_storage_right[count]
+                count += 1
+            #right[tuple(valid_index_right)] = self._temp_storage_right 
+            right = np.asarray(right)
+            left = np.zeros(right.shape)
+            self._results = np.c_[right, left]
+            self._results = np.c_[time_vector, self._results]
+            
+            
+            time_vector = valid_index_right[0]
+            right = self._temp_storage_right
+            left = np.zeros(right.shape)
+            self._results = np.c_[right, left]
+            self._results = np.c_[time_vector, self._results]
+            count = 0 
+            for k in valid_index_right[0]:
+                self._hasAngle[k] = self._temp_storage_right[count]
+                count += 1
+            
+            
+        elif (len(self._temp_storage_left) >  0) and (len(self._temp_storage_right) ==  0) :   #no right data
+            self._temp_storage_left = signal.lfilter(b, a, self._temp_storage_left) 
+            time_vector = np.arange(valid_index_left[0][0], valid_index_left[0][-1])
+            left = [np.nan]*time_vector
+            left[tuple(valid_index_left)] = self._temp_storage_left
+            right = np.zeros(left.shape)
+            
+            self._results = np.c_[right, left]
+            self._results = np.c_[time_vector, self._result]
+            
+        print(self._results)
+#        print(3)
+#        #organize results to present in a consistent way 
+#        min_value = min(valid_index_right[0][0], valid_index_left[0][0])
+#        max_value = max(valid_index_right[0][-1], valid_index_left[0][-1])
+#        print(4)
+#        time_vector = np.arange(min_value, max_value+1)
+#        right = [np.nan]*time_vector
+#        right[tuple(valid_index_right)] = self._temp_storage_right 
+#        left = [np.nan]*time_vector
+#        left[tuple(valid_index_left)] = self._temp_storage_left
+#        print(5)
+#        time_vector = np.linspace(valid_index[0], valid_index[-1], len(valid_index))
+#        print(signal.lfilter(b, a, self._temp_storage_right))
+#        print(signal.lfilter(b, a, self._temp_storage_left))
+#        print(1)
+#        self._results = np.c_[time_vector, signal.lfilter(b, a, self._temp_storage_right), signal.lfilter(b, a, self._temp_storage_left)]
+#        print(1)
+#        self._hasAngle[valid_index] = self._results[valid_index]
+#        print(1)
         
         #self._temp_storage_right= self._temp_storage_right-np.append(self._temp_storage_right[0],self._temp_storage_right[0:-1])
         #self._temp_storage_left= self._temp_storage_right-np.append(self._temp_storage_left[0],self._temp_storage_left[0:-1])
         
         #print(self._temp_storage_right,self._temp_storage_left)
-        print(1)
         fig = plt.figure()
         ax1 = fig.add_subplot(211)
-        ax1.plot(self._results[:,0], self._results[:,1])
+        ax1.plot(time_vector,right)
         ax1.set_ylabel('Displacement (deg)')
         ax1.set_title('Right Side')
         ax2 = fig.add_subplot(212)
-        ax2.plot(self._results[:,0], self._results[:,2])
+        ax2.plot(time_vector,left)
         ax2.set_ylabel('Displacement (deg)')
         ax2.set_xlabel('Time (s)')
         ax2.set_title('Left Side')
