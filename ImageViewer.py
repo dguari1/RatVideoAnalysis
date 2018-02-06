@@ -263,14 +263,14 @@ class ImageViewer(QtWidgets.QGraphicsView):
                                     x_mousePos = self._FaceCenter[0] + np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)  
                                             
                             self._temp_storage.append((x_mousePos,y_mousePos))
-                            self.draw_circle([x_mousePos,y_mousePos,0.75], 'small')
+                            self.draw_circle([x_mousePos,y_mousePos,1], 'small')
                             self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
                                 
                     else:
                             self._rad = np.sqrt((self._FaceCenter[0]-x_mousePos)**2 + (self._FaceCenter[1]-y_mousePos)**2)
                             self.draw_circle([self._FaceCenter[0],self._FaceCenter[1],self._rad], 'big')
                             self._temp_storage.append((x_mousePos,y_mousePos))
-                            self.draw_circle([x_mousePos,y_mousePos,0.75], 'small')
+                            self.draw_circle([x_mousePos,y_mousePos,1], 'small')
                             self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
                     
                 

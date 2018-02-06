@@ -98,8 +98,15 @@ def rot_estimation(ListofFiles,ExtraInfo):
         lims_x[0]=0
     if lims_x[1]>center[0]:
         lims_x[1]=center[0]
+        
     lims_y=[min(ROI[:,1])-10, max(ROI[:,1])+10]
-    
+    if lims_y[0]<0:
+        lims_y[0]=0
+    if lims_y[1]>h_orig:
+        lims_y[1]=h_orig    
+        
+    print(lims_x,lims_y)
+        
     #apply threshold
     image[image>threshold] = 255
     #invert image to improve results
@@ -150,8 +157,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                 res = np.zeros((len(angles),1),dtype = np.float64)
 
                 
-                old_small_image= cv2.resize(old_temp[],(0,0),fx=scale,fy=scale)
-                
+                old_small_image= cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale)
                 
                 for index,angle in enumerate(angles):
                     
@@ -163,7 +169,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                     cv2.bitwise_and(rotated,mask,temp) 
     
                     #find the correlation between the previous frame and the rotate version of the current frame                                                     
-                    correl = cv2.matchTemplate(old_small_image, cv2.resize(temp,(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
+                    correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
                     #store the results 
                     res[index,0] = correl
                     
@@ -182,7 +188,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                 if (results[counter] < 0 and results[counter-1] < 0) and results[counter]<angles[0]*0.15: 
                     res = np.zeros((len(angles_neg),1),dtype = np.float64)
                     
-                    old_small_image = cv2.resize(old_temp,(0,0),fx=0.5,fy=0.5)
+                    old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
                     
                     for index,angle in enumerate(angles_neg):
                         
@@ -196,7 +202,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                        
         
                         #find the correlation between the previous frame and the rotate version of the current frame                                                     
-                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp,(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
+                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
                         
                         #store the results 
                         res[index,0] = correl    
@@ -212,7 +218,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                 elif (results[counter] > 0 and results[counter-1] > 0) and results[counter]>angles[-1]*0.15: 
                     res = np.zeros((len(angles_pos),1),dtype = np.float64)
                     
-                    old_small_image = cv2.resize(old_temp,(0,0),fx=0.5,fy=0.5)
+                    old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
                     
                     for index,angle in enumerate(angles_pos):
                         
@@ -226,7 +232,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                        
         
                         #find the correlation between the previous frame and the rotate version of the current frame                                                     
-                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp,(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
+                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
                         
                         #store the results 
                         res[index,0] = correl    
@@ -242,7 +248,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                     
                     res = np.zeros((len(angles),1),dtype = np.float64)
                     
-                    old_small_image = cv2.resize(old_temp,(0,0),fx=0.5,fy=0.5)
+                    old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
                     
                     for index,angle in enumerate(angles):
                         
@@ -256,7 +262,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                        
         
                         #find the correlation between the previous frame and the rotate version of the current frame                                                     
-                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp,(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
+                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
                         
                         #store the results 
                         res[index,0] = correl    
