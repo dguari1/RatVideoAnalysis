@@ -93,6 +93,13 @@ def rot_estimation(ListofFiles,ExtraInfo):
 
     #print(Side)
     
+    lims_x=[min(ROI[:,0])-10, max(ROI[:,0])+10]
+    if lims_x[0]<0:
+        lims_x[0]=0
+    if lims_x[1]>center[0]:
+        lims_x[1]=center[0]
+    lims_y=[min(ROI[:,1])-10, max(ROI[:,1])+10]
+    
     #apply threshold
     image[image>threshold] = 255
     #invert image to improve results
@@ -143,7 +150,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
                 res = np.zeros((len(angles),1),dtype = np.float64)
 
                 
-                old_small_image= cv2.resize(old_temp,(0,0),fx=scale,fy=scale)
+                old_small_image= cv2.resize(old_temp[],(0,0),fx=scale,fy=scale)
                 
                 
                 for index,angle in enumerate(angles):
