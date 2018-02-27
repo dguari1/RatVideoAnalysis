@@ -21,7 +21,7 @@ window, it also takes care of lifting and re-location of landmarks.
 
 class ImageViewer(QtWidgets.QGraphicsView):  
 
-    signalEmit = pyqtSignal(object)  
+    signalEmit = pyqtSignal(object,int)  
     finished = pyqtSignal()
     
     def __init__(self):
@@ -56,7 +56,9 @@ class ImageViewer(QtWidgets.QGraphicsView):
         self._rad = None
         
         self._temp_storage = [] #this is a variable that is used to store temporary data... :)
-
+        
+        self._temp_storage_right = [] #this is a variable that is used to store temporary data... :)
+        self._temp_storage_left = [] #this is a variable that is used to store temporary data... :)
 
     def setPhotoFirstTime(self, pixmap = None, result = None):
         #this function puts an image in the scece (if pixmap is not None), it
@@ -229,9 +231,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     scenePos = self.mapToScene(event.pos()) #take the position of the mouse
                     x_mousePos = scenePos.toPoint().x()
                     y_mousePos = scenePos.toPoint().y()
-                    
-                    
-                    
+                                                            
                     if self._rad is not None: 
                         rad = np.sqrt((self._FaceCenter[0]-x_mousePos)**2 + (self._FaceCenter[1]-y_mousePos)**2)
                         limit1 = 0.015*self._rad
@@ -246,33 +246,58 @@ class ImageViewer(QtWidgets.QGraphicsView):
                             self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
                             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
                             
-                            for item in self._scene.items():
-                                if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
-                                    if x_mousePos < self._FaceCenter[0]:
-                                        if item.pen().color() == QtCore.Qt.red and (item.pos().x() < self._FaceCenter[0]):
-                                            self._scene.removeItem(item)
-                                    elif x_mousePos > self._FaceCenter[0]:
-                                        if item.pen().color() == QtCore.Qt.red and (item.pos().x() > self._FaceCenter[0]):
-                                            self._scene.removeItem(item)
-                            
-                            if abs(rad - self._rad) > limit2: #click was just close to the circle but not close enough, modify x_position so that it appears on the circle  
-
-                                if x_mousePos < self._FaceCenter[0]:
+                            if (x_mousePos < self._FaceCenter[0]) and (len(self._temp_storage_right)<2): # click on the rigth side                                 
+                                
+                                if abs(rad - self._rad) > limit2: #click was just close to the circle but not close enough, modify x_position so that it appears on the circle 
                                     x_mousePos = self._FaceCenter[0] - np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)
-                                else:
-                                    x_mousePos = self._FaceCenter[0] + np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)  
-                                            
-                            self._temp_storage.append((x_mousePos,y_mousePos))
-                            self.draw_circle([x_mousePos,y_mousePos,1], 'small')
-                            self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
+                                    
+                                self._temp_storage_right.append((x_mousePos,y_mousePos))
+                                self.draw_circle([x_mousePos,y_mousePos,1], 'small')
+                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_right))
+                                
+                            elif (x_mousePos > self._FaceCenter[0]) and (len(self._temp_storage_left)<2): # click on the left side
+                                
+                                if abs(rad - self._rad) > limit2: #click was just close to the circle but not close enough, modify x_position so that it appears on the circle  
+                                    x_mousePos = self._FaceCenter[0] + np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2) 
+                                    
+                                self._temp_storage_left.append((x_mousePos,y_mousePos))
+                                self.draw_circle([x_mousePos,y_mousePos,1], 'small')
+                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_left))
+                                
+                            
+#                            for item in self._scene.items():
+#                                if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
+#                                    if x_mousePos < self._FaceCenter[0]:
+#                                        if item.pen().color() == QtCore.Qt.red and (item.pos().x() < self._FaceCenter[0]):
+#                                            self._scene.removeItem(item)
+#                                    elif x_mousePos > self._FaceCenter[0]:
+#                                        if item.pen().color() == QtCore.Qt.red and (item.pos().x() > self._FaceCenter[0]):
+#                                            self._scene.removeItem(item)
+#                            if len(self._temp_storage) < 2: #only two whiskers per each side of the face ....
+#                                
+#                                if abs(rad - self._rad) > limit2: #click was just close to the circle but not close enough, modify x_position so that it appears on the circle  
+#    
+#                                    if x_mousePos < self._FaceCenter[0]:
+#                                        x_mousePos = self._FaceCenter[0] - np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)
+#                                    else:
+#                                        x_mousePos = self._FaceCenter[0] + np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)  
+#                                                
+#                                self._temp_storage.append((x_mousePos,y_mousePos))
+#                                self.draw_circle([x_mousePos,y_mousePos,1], 'small')
+#                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
                                 
                     else:
                             self._rad = np.sqrt((self._FaceCenter[0]-x_mousePos)**2 + (self._FaceCenter[1]-y_mousePos)**2)
                             self.draw_circle([self._FaceCenter[0],self._FaceCenter[1],self._rad], 'big')
-                            self._temp_storage.append((x_mousePos,y_mousePos))
                             self.draw_circle([x_mousePos,y_mousePos,1], 'small')
-                            self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
-                    
+                            if (x_mousePos < self._FaceCenter[0]):                            
+                                self._temp_storage_right.append((x_mousePos,y_mousePos))
+                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_right))  
+                            else:
+                                self._temp_storage_left.append((x_mousePos,y_mousePos))
+                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_left))  
+                            
+                                          
                 
                 elif event.button() == QtCore.Qt.RightButton: #on right button just finish
                     
@@ -281,7 +306,8 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     for item in self._scene.items():
                         if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
                             self._scene.removeItem(item)
-                    self._temp_storage = []      
+                    self._temp_storage_right = []    
+                    self._temp_storage_left = []    
                     self.finished.emit()
 
                     

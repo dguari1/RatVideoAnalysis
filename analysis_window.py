@@ -31,8 +31,8 @@ Work to do: Create a % bar that indicates the state of things
 
 """
 
-def rot_estimation(ListofFiles,ExtraInfo):
-    
+def rot_estimation(ListofFiles,ExtraInfo):  
+    print(2)
     scale = 0.5
     
     #function that takes care of computing the angular rotation between frames in ListofFiles
@@ -354,7 +354,7 @@ class FramesAnalysis(QObject):
             
             st_time = time.time()  
             pool = self._Pool #Make a local copy Pool(processes=agents)
-            
+
             if self._resultsInfo._AnalizeResults == 'Both': #analize both sides of the face
             
                 it_right = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
@@ -617,7 +617,7 @@ class AnalysisWindow(QDialog):
                 #redefine the number of agents...
                 #This needs to be improved at some point so that it doesn't change the number of agents!!!
                 agents = int(np.ceil(len(self._selectedList)/div_number))
-            
+
             #initianlize the Pool of processors
             self._Pool = Pool(processes=agents)
             

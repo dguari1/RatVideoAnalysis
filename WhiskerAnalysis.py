@@ -31,6 +31,21 @@ from rotation_window import RotationAngleWindow
 from Test_window import TestWindow
 
 
+#### this piece is used to sort the files by name 
+import re
+
+re_digits  = re.compile(r'(\d+)')
+
+def embedded_numbers(s):
+    pieces = re_digits.split(s)
+    pieces[1::2] = map(int,pieces[1::2])
+    return pieces[-2]
+
+def sort_list_with_embedded_numbers(FileList):
+    return sorted(FileList, key = embedded_numbers)
+#######################
+
+
 def get_pixmap(image, threshold=None, rotation_angle = None):
     #conver an opencv image to a QtImage (Pixmap) this function takes into consideration
     #if the image is color or gray and if there is a threshold defined or not
@@ -365,6 +380,7 @@ class MainWindow(QtWidgets.QMainWindow):
             Files = os.listdir(name)            
             ext=('.png', '.jpg', '.jpeg', '.bmp','tif', 'tiff', '.PNG', '.JPG', '.JPEG', '.BMP', '.TIF', '.TIFF')
             Files = [i for i in Files if i.endswith(tuple(ext))]
+
             
             if not Files: #no items in the folder, print a critiall error message 
                 QtWidgets.QMessageBox.critical(self, 'No Valid Files', 
@@ -390,13 +406,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 #and clean scene
                 self.displayImage.clean_scene()
                       
-                #sort the files
-                Files.sort()            
+                #sort the files       
                 self._FrameIndex = 0
-                self._FileList = Files
+                self._FileList = sort_list_with_embedded_numbers(Files)
                 self._hasAngle = [None]*len(self._FileList) #no angles for recently uploaded frames
                 self._Folder = name
                 
+                thefile = open(os.path.join(name,'tt1.txt'), 'w')
+                for item in self._FileList:
+                    thefile.write("%s\n" % item)
                 self._rotation_angle = None #rotation angle 
                 
                 self._slider.setMinimum(1)
@@ -461,12 +479,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 #and clean scene
                 self.displayImage.clean_scene()
                       
-                #sort the files
-                Files.sort()            
+                #sort the files          
                 self._FrameIndex = 0
-                self._FileList = Files
+                self._FileList = sort_list_with_embedded_numbers(Files)
                 self._hasAngle = [None]*len(self._FileList) #no angles for recently uploaded frames
                 self._Folder = name
+                
+                
                 
                 self._rotation_angle = None #rotation angle 
                 
@@ -570,17 +589,22 @@ class MainWindow(QtWidgets.QMainWindow):
                     QtWidgets.QMessageBox.warning(self, 'Error','Incorrect File Type')
                     return
                     
-             
-                self._FaceCenter = From_File._FaceCenter
-                self._RightROI = From_File._RightROI  
-                self._LeftROI = From_File._LeftROI
-                self._threshold = From_File._threshold
-                self._rotation_angle = From_File._rotation_angle
-                self._hasAngle[0:len(From_File._results)] = From_File._hasAngle 
-                self._results = From_File._results
+                if From_File._FaceCenter is not None:
+                    self._FaceCenter = From_File._FaceCenter
+                if From_File._RightROI is not None:
+                    self._RightROI = From_File._RightROI  
+                if From_File._LeftROI is not None:
+                    self._LeftROI = From_File._LeftROI
+                if From_File._threshold is not None:
+                    self._threshold = From_File._threshold
+                if From_File._rotation_angle is not None:
+                    self._rotation_angle = From_File._rotation_angle
+                if From_File._hasAngle is not None:
+                    self._hasAngle[0:len(From_File._results)] = From_File._hasAngle 
+                if From_File._results is not None:
+                    self._results = From_File._results
                 #remove file from memory, it is not needed any more
                 From_File = None
-                
                 
 #                #show the photo
                 self.displayImage.draw_from_txt(self._FaceCenter, self._RightROI, self._LeftROI) 
@@ -1240,7 +1264,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 ax1.set_ylabel('Displacement (deg)')
                 ax1.set_title('Right Side')
                 ax1.set_ylim(-lim,lim)
-                ax1.set_xticks([]) 
+                #ax1.set_xticks([]) 
                 ax2 = fig.add_subplot(212)
                 ax2.plot(self._results[:,0],self._results[:,2])
                 ax2.set_ylabel('Displacement (deg)')
@@ -1297,29 +1321,32 @@ class MainWindow(QtWidgets.QMainWindow):
             
         if self._current_Image is not None:
             if self.displayImage._FaceCenter is not None:   
-                self._hasAngleTempRight = [False]*len(self._FileList)  #a temporary version of the variable self._hasAngle
+                self._hasAngleTempRight = [[False]*len(self._FileList),[False]*len(self._FileList)] #a temporary version of the variable self._hasAngle
                 self._hasAngleTempLeft = [False]*len(self._FileList)  #a temporary version of the variable self._hasAngle
                 self._FaceCenter = self.displayImage._FaceCenter
-                self._temp_storage_right = [None]*len(self._FileList)
-                self._temp_storage_left = [None]*len(self._FileList)
+                self._temp_storage_right = [[None]*len(self._FileList),[None]*len(self._FileList)]
+                self._temp_storage_left = [[None]*len(self._FileList),[None]*len(self._FileList)]
                 self.displayImage._isManualEstimation = True 
                 self.displayImage.signalEmit.connect(self.ManualEstimation_update)
                 self.displayImage.finished.connect(self.ManualEstimation_end)
 
             
 
-    def ManualEstimation_update(self, position):
-        
+    def ManualEstimation_update(self, position,side):
+        print(side)
         if position[0]<self._FaceCenter[0]:
             self._hasAngleTempRight[self._FrameIndex] = True
-            self._temp_storage_right[self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(self._FaceCenter[0]-position[0])))*(180/np.pi)
+            self._temp_storage_right[0][self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(self._FaceCenter[0]-position[0])))*(180/np.pi)
+            self._temp_storage_right[1][self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(self._FaceCenter[0]-position[0])))*(180/np.pi)
+            print(self._temp_storage_right[])
         elif position[0]>self._FaceCenter[0]:
             self._hasAngleTempLeft[self._FrameIndex] = True
-            self._temp_storage_left[self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(self._FaceCenter[0]-position[0])))*(180/np.pi)
+            self._temp_storage_left[self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(position[0]-self._FaceCenter[0])))*(180/np.pi)
+            print(self._temp_storage_left[self._FrameIndex])
         
         if self._temp_storage_right[self._FrameIndex] is not None:
             self._framelabel.setText('[<span style ="background-color: red;">+</span>| ] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-                
+           
         if self._temp_storage_left[self._FrameIndex] is not None:
             self._framelabel.setText('[<span style ="background-color: red;">+</span>|<span style ="background-color: red;">+</span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
         
