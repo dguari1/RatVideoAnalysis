@@ -139,6 +139,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self._temp_storage = None #variable that will be used to store results temporarily 
         
+        self._ManualEstimation = False
+        
         self.timer = QtCore.QTimer()  #controls video playback 
         
         
@@ -279,25 +281,25 @@ class MainWindow(QtWidgets.QMainWindow):
         BackwardAction.setStatusTip('Move backward one frame')
         BackwardAction.triggered.connect(self.Backward_function)
         
-        PlayAction = VideoMenu.addAction("Play Movie")
-        PlayAction.setShortcut("Shift+Z")
-        PlayAction.setStatusTip('Play movie')
-        PlayAction.triggered.connect(self.Play_function)
+        self.PlayAction = VideoMenu.addAction("Play Movie")
+        self.PlayAction.setShortcut("Shift+Z")
+        self.PlayAction.setStatusTip('Play movie')
+        self.PlayAction.triggered.connect(self.Play_function)
         
-        StopAction = VideoMenu.addAction("Stop Movie")
-        StopAction.setShortcut("Shift+S")
-        StopAction.setStatusTip('Stop movie')
-        StopAction.triggered.connect(self.Stop_function)
+        self.StopAction = VideoMenu.addAction("Stop Movie")
+        self.StopAction.setShortcut("Shift+S")
+        self.StopAction.setStatusTip('Stop movie')
+        self.StopAction.triggered.connect(self.Stop_function)
         
-        GotoAction = VideoMenu.addAction("GoTo Frame")
-        GotoAction.setShortcut("Shift+F")
-        GotoAction.setStatusTip('Go to a specific frame')
-        GotoAction.triggered.connect(self.goto_function)
+        self.GotoAction = VideoMenu.addAction("GoTo Frame")
+        self.GotoAction.setShortcut("Shift+F")
+        self.GotoAction.setStatusTip('Go to a specific frame')
+        self.GotoAction.triggered.connect(self.goto_function)
         
-        SpeedAction = VideoMenu.addAction("PlayBack Speed")
-        SpeedAction.setShortcut("Shift+P")
-        SpeedAction.setStatusTip('Define playback speed for video reproduction')
-        SpeedAction.triggered.connect(self.speed_function)
+        self.SpeedAction = VideoMenu.addAction("PlayBack Speed")
+        self.SpeedAction.setShortcut("Shift+P")
+        self.SpeedAction.setStatusTip('Define playback speed for video reproduction')
+        self.SpeedAction.triggered.connect(self.speed_function)
         
         ProcessMenu = MenuBar.addMenu("&Analysis")
         
@@ -324,7 +326,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         ManualEstimationAction = ProcessMenu.addAction("Manual estimation")
         ManualEstimationAction.setShortcut("Ctrl+B")
-        ManualEstimationAction.setStatusTip('Manually track one whisker in the right, left or both sides of the face')
+        ManualEstimationAction.setStatusTip('Manually track the most caudal and rostal whiskers in both sides of the face')
         ManualEstimationAction.triggered.connect(self.ManualEstimation_function)
 
         
@@ -645,8 +647,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     else:
                         self._sent_angle = None
                         self.displayImage.setPhoto(img_show, self._sent_angle)  
-                        
-                self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
+                if self._ManualEstimation:
+                    self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                else:
+                    self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
                 self._slider.blockSignals(True)
                 self._slider.setValue(self._FrameIndex+1)
                 self._slider.blockSignals(False)
@@ -679,7 +683,10 @@ class MainWindow(QtWidgets.QMainWindow):
                         self._sent_angle = None
                         self.displayImage.setPhoto(img_show, self._sent_angle) 
                     
-                self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                if self._ManualEstimation:
+                    self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                else:
+                    self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
                 self._slider.blockSignals(True)
                 self._slider.setValue(self._FrameIndex+1)
                 self._slider.blockSignals(False)
@@ -1321,8 +1328,18 @@ class MainWindow(QtWidgets.QMainWindow):
             
         if self._current_Image is not None:
             if self.displayImage._FaceCenter is not None:   
+                #remove the ability to play the movie or change to another frame
+                self.PlayAction.setEnabled(False)
+                self.StopAction.setEnabled(False)
+                self.GotoAction.setEnabled(False)
+                self.SpeedAction.setEnabled(False)
+                self._slider.setEnabled(False)
+                
+                self._ManualEstimation = True #start manual estimation
+        
+                self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
                 self._hasAngleTempRight = [[False]*len(self._FileList),[False]*len(self._FileList)] #a temporary version of the variable self._hasAngle
-                self._hasAngleTempLeft = [False]*len(self._FileList)  #a temporary version of the variable self._hasAngle
+                self._hasAngleTempLeft = [[False]*len(self._FileList),[False]*len(self._FileList)]  #a temporary version of the variable self._hasAngle
                 self._FaceCenter = self.displayImage._FaceCenter
                 self._temp_storage_right = [[None]*len(self._FileList),[None]*len(self._FileList)]
                 self._temp_storage_left = [[None]*len(self._FileList),[None]*len(self._FileList)]
@@ -1332,29 +1349,97 @@ class MainWindow(QtWidgets.QMainWindow):
 
             
 
-    def ManualEstimation_update(self, position,side):
-        print(side)
+    def ManualEstimation_update(self, position,number):
         if position[0]<self._FaceCenter[0]:
-            self._hasAngleTempRight[self._FrameIndex] = True
-            self._temp_storage_right[0][self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(self._FaceCenter[0]-position[0])))*(180/np.pi)
-            self._temp_storage_right[1][self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(self._FaceCenter[0]-position[0])))*(180/np.pi)
-            print(self._temp_storage_right[])
+            angle_est = np.arctan(((self._FaceCenter[0]-position[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
+            if angle_est < 0 :
+                angle_est = 180+angle_est
+            if number == 1:
+                self._hasAngleTempRight[0][self._FrameIndex] = True
+                self._temp_storage_right[0][self._FrameIndex] = angle_est
+            elif number == 2:
+                self._hasAngleTempRight[1][self._FrameIndex] = True            
+                self._temp_storage_right[1][self._FrameIndex] = angle_est
+            
         elif position[0]>self._FaceCenter[0]:
-            self._hasAngleTempLeft[self._FrameIndex] = True
-            self._temp_storage_left[self._FrameIndex] = np.arctan(((self._FaceCenter[1]-position[1])/(position[0]-self._FaceCenter[0])))*(180/np.pi)
-            print(self._temp_storage_left[self._FrameIndex])
+            angle_est = np.arctan(((position[0] - self._FaceCenter[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
+            if angle_est < 0 :
+                angle_est = 180+angle_est
+            if number == 1:    
+                self._hasAngleTempLeft[0][self._FrameIndex] = True
+                self._temp_storage_left[0][self._FrameIndex] = angle_est
+            elif number == 2:
+                self._hasAngleTempLeft[1][self._FrameIndex] = True
+                self._temp_storage_left[1][self._FrameIndex] = angle_est
         
-        if self._temp_storage_right[self._FrameIndex] is not None:
-            self._framelabel.setText('[<span style ="background-color: red;">+</span>| ] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-           
-        if self._temp_storage_left[self._FrameIndex] is not None:
-            self._framelabel.setText('[<span style ="background-color: red;">+</span>|<span style ="background-color: red;">+</span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
         
+        #print(self._temp_storage_right[0][self._FrameIndex],self._temp_storage_right[1][self._FrameIndex])
+        #print(self._temp_storage_left[0][self._FrameIndex],self._temp_storage_left[1][self._FrameIndex])
         
-   
-        #print(self._temp_storage_right, self._temp_storage_right)
+        r0 = self._temp_storage_right[0][self._FrameIndex]
+        r1 = self._temp_storage_right[1][self._FrameIndex]
         
+        l0 = self._temp_storage_left[0][self._FrameIndex]
+        l1 = self._temp_storage_left[1][self._FrameIndex]
+        
+        if (r0 is not None) and (r1 is None) and (l0 is None) and (l1 is None):
+            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is None) and (r1 is not None) and (l0 is None) and (l1 is None):
+            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is not None) and (r1 is not None) and (l0 is None) and (l1 is None):
+            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is None) and (r1 is None) and (l0 is not None) and (l1 is None):
+            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is None) and (r1 is None) and (l0 is None) and (l1 is not None):
+            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is None) and (r1 is None) and (l0 is not None) and (l1 is not None):
+            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is not None) and (r1 is None) and (l0 is not None) and (l1 is None):
+            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is not None) and (r1 is None) and (l0 is None) and (l1 is not None):
+            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is None) and (r1 is not None) and (l0 is not None) and (l1 is None):
+            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is None) and (r1 is not None) and (l0 is None) and (l1 is not None):
+            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is not None) and (r1 is not None) and (l0 is not None) and (l1 is None):
+            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: yellow;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+        elif (r0 is not None) and (r1 is not None) and (l0 is None) and (l1 is not None):
+            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color:yellow;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))        
+        elif (r0 is not None) and (r1 is not None) and (l0 is not None) and (l1 is not None):
+            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+
+
+
+
+
+        
+#        if (self._temp_storage_right[0][self._FrameIndex] is not None) and (self._temp_storage_left[0][self._FrameIndex] is None) and (self._temp_storage_left[1][self._FrameIndex] is None):
+#            self._framelabel.setText('[<span style ="background-color: red;"> - </span>| ] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        if self._temp_storage_right[1][self._FrameIndex] is not None and (self._temp_storage_left[0][self._FrameIndex] is None) and (self._temp_storage_left[1][self._FrameIndex] is None):
+#            self._framelabel.setText('[<span style ="background-color: red;"> + </span>| ] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#            
+#        if self._temp_storage_left[0][self._FrameIndex] is not None:
+#            self._framelabel.setText('[<span style ="background-color: red;"> + </span>|<span style ="background-color: red;"> - </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        if self._temp_storage_left[1][self._FrameIndex] is not None:
+#            self._framelabel.setText('[<span style ="background-color: red;"> + </span>|<span style ="background-color: red;"> + </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#         
+#        #verify that all four points where properly selected 
+#        if (self._temp_storage_right[0][self._FrameIndex] is not None) and (self._temp_storage_right[1][self._FrameIndex] is not None) and (self._temp_storage_left[0][self._FrameIndex] is None) and (self._temp_storage_left[1][self._FrameIndex] is None):
+#            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        else:
+#            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+
+       
     def ManualEstimation_end(self):
+        #re-establish the ability to play the movie or change to another frame
+        self.PlayAction.setEnabled(True)
+        self.StopAction.setEnabled(True)
+        self.GotoAction.setEnabled(True)
+        self.SpeedAction.setEnabled(True)
+        self._slider.setEnabled(True)
+        
+        self._ManualEstimation = False #end manual estimation
 
         right = np.zeros((len(self._FileList),1))
         left = np.zeros((len(self._FileList),1))
