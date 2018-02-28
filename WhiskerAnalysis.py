@@ -326,7 +326,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         ManualEstimationAction = ProcessMenu.addAction("Manual estimation")
         ManualEstimationAction.setShortcut("Ctrl+B")
-        ManualEstimationAction.setStatusTip('Manually track the most caudal and rostal whiskers in both sides of the face')
+        ManualEstimationAction.setStatusTip('Manually track the most caudal and rostal whiskers in both sides of the face. Double click cleans current frame. ')
         ManualEstimationAction.triggered.connect(self.ManualEstimation_function)
 
         
@@ -646,17 +646,66 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.displayImage.setPhoto(img_show, self._sent_angle)                        
                     else:
                         self._sent_angle = None
-                        self.displayImage.setPhoto(img_show, self._sent_angle)  
-                if self._ManualEstimation:
-                    self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-                else:
-                    self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
+                        self.displayImage.setPhoto(img_show, self._sent_angle)              
+
+                    #deprecated 28/2/2018
+                    #self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                  
+                    if self._ManualEstimation is True:
+                        #clear info from previous frame and clear drawings in screen
+                        self.displayImage._temp_storage_right = []
+                        self.displayImage._temp_storage_left = []
+                        for item in self.displayImage._scene.items():
+                            if isinstance(item, QtWidgets.QGraphicsLineItem) or isinstance(item, QtWidgets.QGraphicsEllipseItem):
+                                 if (item.pen().color() == QtCore.Qt.red) or  (item.pen().color() == QtCore.Qt.blue):
+                                    self.displayImage._scene.removeItem(item)
+                                    
+                        #verify if the information is already avaliable, if it is then draw it on the screen            
+                        if self._hasAngleTempRight[0][self._FrameIndex] is True:
+                            
+                            self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_right[0][self._FrameIndex][0],self._temp_storage_right[0][self._FrameIndex][1], 0, 0.1)
+                            
+                            if self._hasAngleTempRight[1][self._FrameIndex] is True:
+                                self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_right[1][self._FrameIndex][0],self._temp_storage_right[1][self._FrameIndex][1], 0, 0.1)
+                                #Position of most caudal and rostal whisker are avaliable, draw the mid point 
+                                x1 = self._temp_storage_right[0][self._FrameIndex][0]-self._FaceCenter[0]
+                                y1 = self._temp_storage_right[0][self._FrameIndex][1]-self._FaceCenter[1]
+                                
+                                x2 = self._temp_storage_right[1][self._FrameIndex][0]-self._FaceCenter[0]
+                                y2 = self._temp_storage_right[1][self._FrameIndex][1]-self._FaceCenter[1]
+                                
+                                p = self.displayImage._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                q = ((y1+y2)/(x1+x2))*p
+                                
+                                self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],q+self._FaceCenter[1], 1, 1)
+                        elif self._hasAngleTempRight[1][self._FrameIndex] is True:            
+                            self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_right[1][self._FrameIndex][0],self._temp_storage_right[1][self._FrameIndex][1], 0, 0.1)
+                            
+                        if self._hasAngleTempLeft[0][self._FrameIndex] is True:
+                            self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_left[0][self._FrameIndex][0],self._temp_storage_left[0][self._FrameIndex][1], 0, 0.1)
+                            if self._hasAngleTempLeft[1][self._FrameIndex] is True:
+                                self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_left[1][self._FrameIndex][0],self._temp_storage_left[1][self._FrameIndex][1], 0, 0.1)
+                                #Position of most caudal and rostal whisker are avaliable, draw the mid point 
+                                x1 = self._FaceCenter[0]-self._temp_storage_left[0][self._FrameIndex][0]
+                                y1 = self._temp_storage_left[0][self._FrameIndex][1]-self._FaceCenter[1]
+                                
+                                x2 = self._FaceCenter[0]-self._temp_storage_left[1][self._FrameIndex][0]
+                                y2 = self._temp_storage_left[1][self._FrameIndex][1]-self._FaceCenter[1]
+                                p = -self.displayImage._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                q = ((y1+y2)/(x1+x2))*abs(p)
+
+                                self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],self._FaceCenter[1]-q, 1, 1)
+                                
+                        elif self._hasAngleTempLeft[1][self._FrameIndex] is True:
+                            self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_left[1][self._FrameIndex][0],self._temp_storage_left[1][self._FrameIndex][1], 0, 0.1)
+                         
+
+                                    
+                self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
                 self._slider.blockSignals(True)
                 self._slider.setValue(self._FrameIndex+1)
-                self._slider.blockSignals(False)
-               # self._framelabel.setText('Frame <span style ="color:#ff0000;"> {a} </span> of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList))) 
-                
-            
+                self._slider.blockSignals(False)        
+
 
     def Backward_function(self):
         #stop playback if active
@@ -683,10 +732,56 @@ class MainWindow(QtWidgets.QMainWindow):
                         self._sent_angle = None
                         self.displayImage.setPhoto(img_show, self._sent_angle) 
                     
-                if self._ManualEstimation:
-                    self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-                else:
-                    self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
+                    if self._ManualEstimation:
+                        #clear info from previous frame and clear drawings in screen
+                        self.displayImage._temp_storage_right = []
+                        self.displayImage._temp_storage_left = []
+                        for item in self.displayImage._scene.items():
+                            if isinstance(item, QtWidgets.QGraphicsLineItem) or isinstance(item, QtWidgets.QGraphicsEllipseItem):
+                                 if (item.pen().color() == QtCore.Qt.red) or  (item.pen().color() == QtCore.Qt.blue):
+                                    self.displayImage._scene.removeItem(item)
+                                    
+                        #verify if the information is already avaliable, if it is then draw it on the screen            
+                        #right side
+                        if self._hasAngleTempRight[0][self._FrameIndex] is True:
+                            self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_right[0][self._FrameIndex][0],self._temp_storage_right[0][self._FrameIndex][1], 0, 0.1)
+
+                            if self._hasAngleTempRight[1][self._FrameIndex] is True:
+                                self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_right[1][self._FrameIndex][0],self._temp_storage_right[1][self._FrameIndex][1], 0, 0.1)
+                                #Position of most caudal and rostal whisker are avaliable, draw the mid point 
+                                x1 = self._temp_storage_right[0][self._FrameIndex][0]-self._FaceCenter[0]
+                                y1 = self._temp_storage_right[0][self._FrameIndex][1]-self._FaceCenter[1]
+                                
+                                x2 = self._temp_storage_right[1][self._FrameIndex][0]-self._FaceCenter[0]
+                                y2 = self._temp_storage_right[1][self._FrameIndex][1]-self._FaceCenter[1]
+                                
+                                p = self.displayImage._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                q = ((y1+y2)/(x1+x2))*p
+                                
+                                self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],q+self._FaceCenter[1], 1, 1)
+                        elif self._hasAngleTempRight[1][self._FrameIndex] is True:            
+                            self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_right[1][self._FrameIndex][0],self._temp_storage_right[1][self._FrameIndex][1], 0, 0.1)
+                        
+                        #left side
+                        if self._hasAngleTempLeft[0][self._FrameIndex] is True:
+                            self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_left[0][self._FrameIndex][0],self._temp_storage_left[0][self._FrameIndex][1], 0, 0.1)
+                            if self._hasAngleTempLeft[1][self._FrameIndex] is True:
+                                self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_left[1][self._FrameIndex][0],self._temp_storage_left[1][self._FrameIndex][1], 0, 0.1)
+                                #Position of most caudal and rostal whisker are avaliable, draw the mid point 
+                                x1 = self._FaceCenter[0]-self._temp_storage_left[0][self._FrameIndex][0]
+                                y1 = self._temp_storage_left[0][self._FrameIndex][1]-self._FaceCenter[1]
+                                
+                                x2 = self._FaceCenter[0]-self._temp_storage_left[1][self._FrameIndex][0]
+                                y2 = self._temp_storage_left[1][self._FrameIndex][1]-self._FaceCenter[1]
+                                p = -self.displayImage._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                q = ((y1+y2)/(x1+x2))*abs(p)
+
+                                self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],self._FaceCenter[1]-q, 1, 1)
+         
+                        elif self._hasAngleTempLeft[1][self._FrameIndex] is True:
+                            self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],self._temp_storage_left[1][self._FrameIndex][0],self._temp_storage_left[1][self._FrameIndex][1], 0, 0.1)
+                    
+                self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
                 self._slider.blockSignals(True)
                 self._slider.setValue(self._FrameIndex+1)
                 self._slider.blockSignals(False)
@@ -1337,7 +1432,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 self._ManualEstimation = True #start manual estimation
         
-                self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                #deprecated 28/2/2018
+                #self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
                 self._hasAngleTempRight = [[False]*len(self._FileList),[False]*len(self._FileList)] #a temporary version of the variable self._hasAngle
                 self._hasAngleTempLeft = [[False]*len(self._FileList),[False]*len(self._FileList)]  #a temporary version of the variable self._hasAngle
                 self._FaceCenter = self.displayImage._FaceCenter
@@ -1349,67 +1445,84 @@ class MainWindow(QtWidgets.QMainWindow):
 
             
 
-    def ManualEstimation_update(self, position,number):
-        if position[0]<self._FaceCenter[0]:
-            angle_est = np.arctan(((self._FaceCenter[0]-position[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
-            if angle_est < 0 :
-                angle_est = 180+angle_est
-            if number == 1:
-                self._hasAngleTempRight[0][self._FrameIndex] = True
-                self._temp_storage_right[0][self._FrameIndex] = angle_est
-            elif number == 2:
-                self._hasAngleTempRight[1][self._FrameIndex] = True            
-                self._temp_storage_right[1][self._FrameIndex] = angle_est
+    def ManualEstimation_update(self, position,number, action):
+
+        if action == 'append': #append the information in the current frame
+            if position[0]<self._FaceCenter[0]:
+                angle_est = np.arctan(((self._FaceCenter[0]-position[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
+                if angle_est < 0 :
+                    angle_est = 180+angle_est
+                if number == 1:
+                    self._hasAngleTempRight[0][self._FrameIndex] = True
+                    self._temp_storage_right[0][self._FrameIndex] = [position[0],position[1]]#angle_est
+                elif number == 2:
+                    self._hasAngleTempRight[1][self._FrameIndex] = True            
+                    self._temp_storage_right[1][self._FrameIndex] = [position[0],position[1]]#angle_est
+                
+            elif position[0]>self._FaceCenter[0]:
+                angle_est = np.arctan(((position[0] - self._FaceCenter[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
+                if angle_est < 0 :
+                    angle_est = 180+angle_est
+                if number == 1:    
+                    self._hasAngleTempLeft[0][self._FrameIndex] = True
+                    self._temp_storage_left[0][self._FrameIndex] = [position[0],position[1]]#angle_est
+                elif number == 2:
+                    self._hasAngleTempLeft[1][self._FrameIndex] = True
+                    self._temp_storage_left[1][self._FrameIndex] = [position[0],position[1]]#angle_est
+                    
+        elif action == 'remove': #remove the information from the current frame
+            self._hasAngleTempRight[0][self._FrameIndex] = False
+            self._temp_storage_right[0][self._FrameIndex] = None
+            self._hasAngleTempRight[1][self._FrameIndex] = False            
+            self._temp_storage_right[1][self._FrameIndex] = None
             
-        elif position[0]>self._FaceCenter[0]:
-            angle_est = np.arctan(((position[0] - self._FaceCenter[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
-            if angle_est < 0 :
-                angle_est = 180+angle_est
-            if number == 1:    
-                self._hasAngleTempLeft[0][self._FrameIndex] = True
-                self._temp_storage_left[0][self._FrameIndex] = angle_est
-            elif number == 2:
-                self._hasAngleTempLeft[1][self._FrameIndex] = True
-                self._temp_storage_left[1][self._FrameIndex] = angle_est
+            self._hasAngleTempLeft[0][self._FrameIndex] = False
+            self._temp_storage_left[0][self._FrameIndex] = None
+            self._hasAngleTempLeft[1][self._FrameIndex] = False
+            self._temp_storage_left[1][self._FrameIndex] = None
+            
         
+        print((self._temp_storage_right[0][self._FrameIndex],self._temp_storage_right[1][self._FrameIndex]),(self._temp_storage_left[0][self._FrameIndex],self._temp_storage_left[1][self._FrameIndex]))
         
         #print(self._temp_storage_right[0][self._FrameIndex],self._temp_storage_right[1][self._FrameIndex])
         #print(self._temp_storage_left[0][self._FrameIndex],self._temp_storage_left[1][self._FrameIndex])
         
-        r0 = self._temp_storage_right[0][self._FrameIndex]
-        r1 = self._temp_storage_right[1][self._FrameIndex]
         
-        l0 = self._temp_storage_left[0][self._FrameIndex]
-        l1 = self._temp_storage_left[1][self._FrameIndex]
-        
-        if (r0 is not None) and (r1 is None) and (l0 is None) and (l1 is None):
-            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is None) and (r1 is not None) and (l0 is None) and (l1 is None):
-            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is not None) and (r1 is not None) and (l0 is None) and (l1 is None):
-            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is None) and (r1 is None) and (l0 is not None) and (l1 is None):
-            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is None) and (r1 is None) and (l0 is None) and (l1 is not None):
-            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is None) and (r1 is None) and (l0 is not None) and (l1 is not None):
-            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is not None) and (r1 is None) and (l0 is not None) and (l1 is None):
-            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is not None) and (r1 is None) and (l0 is None) and (l1 is not None):
-            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is None) and (r1 is not None) and (l0 is not None) and (l1 is None):
-            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is None) and (r1 is not None) and (l0 is None) and (l1 is not None):
-            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is not None) and (r1 is not None) and (l0 is not None) and (l1 is None):
-            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: yellow;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-        elif (r0 is not None) and (r1 is not None) and (l0 is None) and (l1 is not None):
-            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color:yellow;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))        
-        elif (r0 is not None) and (r1 is not None) and (l0 is not None) and (l1 is not None):
-            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-
-
+        #deprecated - 28/2/2018
+#        r0 = self._temp_storage_right[0][self._FrameIndex]
+#        r1 = self._temp_storage_right[1][self._FrameIndex]
+#        
+#        l0 = self._temp_storage_left[0][self._FrameIndex]
+#        l1 = self._temp_storage_left[1][self._FrameIndex]
+#        
+#        if (r0 is not None) and (r1 is None) and (l0 is None) and (l1 is None):
+#            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is None) and (r1 is not None) and (l0 is None) and (l1 is None):
+#            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is not None) and (r1 is not None) and (l0 is None) and (l1 is None):
+#            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is None) and (r1 is None) and (l0 is not None) and (l1 is None):
+#            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is None) and (r1 is None) and (l0 is None) and (l1 is not None):
+#            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is None) and (r1 is None) and (l0 is not None) and (l1 is not None):
+#            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>|<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is not None) and (r1 is None) and (l0 is not None) and (l1 is None):
+#            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is not None) and (r1 is None) and (l0 is None) and (l1 is not None):
+#            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is None) and (r1 is not None) and (l0 is not None) and (l1 is None):
+#            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is None) and (r1 is not None) and (l0 is None) and (l1 is not None):
+#            self._framelabel.setText('[<span style ="background-color: yellow;"> \u2718 </span>|<span style ="background-color: yellow;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is not None) and (r1 is not None) and (l0 is not None) and (l1 is None):
+#            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: yellow;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#        elif (r0 is not None) and (r1 is not None) and (l0 is None) and (l1 is not None):
+#            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color:yellow;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))        
+#        elif (r0 is not None) and (r1 is not None) and (l0 is not None) and (l1 is not None):
+#            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+#
+#
 
 
 

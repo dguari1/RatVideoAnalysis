@@ -21,7 +21,7 @@ window, it also takes care of lifting and re-location of landmarks.
 
 class ImageViewer(QtWidgets.QGraphicsView):  
 
-    signalEmit = pyqtSignal(object,int)  
+    signalEmit = pyqtSignal(object,int,str)  
     finished = pyqtSignal()
     
     def __init__(self):
@@ -246,45 +246,53 @@ class ImageViewer(QtWidgets.QGraphicsView):
                             self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
                             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
                             
-                            if (x_mousePos < self._FaceCenter[0]) and (len(self._temp_storage_right)<2): # click on the rigth side                                 
+                            if (x_mousePos < self._FaceCenter[0]) and (len(self._temp_storage_right)<2): # click on the rigth side and there are less than point in the circle                              
                                 
                                 if abs(rad - self._rad) > limit2: #click was just close to the circle but not close enough, modify x_position so that it appears on the circle 
                                     x_mousePos = self._FaceCenter[0] - np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)
                                     
                                 self._temp_storage_right.append((x_mousePos,y_mousePos))
                                 self.draw_circle([x_mousePos,y_mousePos,1], 'small')
-                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_right))
+                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_right),'append')
                                 
-                            elif (x_mousePos > self._FaceCenter[0]) and (len(self._temp_storage_left)<2): # click on the left side
+                                #draw a blue line between the two selected points 
+                                if len(self._temp_storage_right) == 2:
+                                    x1 = self._temp_storage_right[0][0]-self._FaceCenter[0]
+                                    y1 = self._temp_storage_right[0][1]-self._FaceCenter[1]
+                                    
+                                    x2 = self._temp_storage_right[1][0]-self._FaceCenter[0]
+                                    y2 = self._temp_storage_right[1][1]-self._FaceCenter[1]
+                                    
+                                    p = self._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                    q = ((y1+y2)/(x1+x2))*p
+                                    
+                                    self.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],q+self._FaceCenter[1], 1, 1)
+                                    
+                                self.draw_line(self._FaceCenter[0],self._FaceCenter[1],x_mousePos,y_mousePos, 0, 0.1)
+                                
+                            elif (x_mousePos > self._FaceCenter[0]) and (len(self._temp_storage_left)<2): # click on the left side and there are less than point in the circle    
                                 
                                 if abs(rad - self._rad) > limit2: #click was just close to the circle but not close enough, modify x_position so that it appears on the circle  
                                     x_mousePos = self._FaceCenter[0] + np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2) 
                                     
                                 self._temp_storage_left.append((x_mousePos,y_mousePos))
                                 self.draw_circle([x_mousePos,y_mousePos,1], 'small')
-                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_left))
+                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_left), 'append')
                                 
-                            
-#                            for item in self._scene.items():
-#                                if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
-#                                    if x_mousePos < self._FaceCenter[0]:
-#                                        if item.pen().color() == QtCore.Qt.red and (item.pos().x() < self._FaceCenter[0]):
-#                                            self._scene.removeItem(item)
-#                                    elif x_mousePos > self._FaceCenter[0]:
-#                                        if item.pen().color() == QtCore.Qt.red and (item.pos().x() > self._FaceCenter[0]):
-#                                            self._scene.removeItem(item)
-#                            if len(self._temp_storage) < 2: #only two whiskers per each side of the face ....
-#                                
-#                                if abs(rad - self._rad) > limit2: #click was just close to the circle but not close enough, modify x_position so that it appears on the circle  
-#    
-#                                    if x_mousePos < self._FaceCenter[0]:
-#                                        x_mousePos = self._FaceCenter[0] - np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)
-#                                    else:
-#                                        x_mousePos = self._FaceCenter[0] + np.sqrt(self._rad**2 -(y_mousePos - self._FaceCenter[1])**2)  
-#                                                
-#                                self._temp_storage.append((x_mousePos,y_mousePos))
-#                                self.draw_circle([x_mousePos,y_mousePos,1], 'small')
-#                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]))
+                                #draw a blue line between the two selected points 
+                                if len(self._temp_storage_left) == 2:
+                                    x1 = self._FaceCenter[0]-self._temp_storage_left[0][0]
+                                    y1 = self._temp_storage_left[0][1]-self._FaceCenter[1]
+                                    
+                                    x2 = self._FaceCenter[0]-self._temp_storage_left[1][0]
+                                    y2 = self._temp_storage_left[1][1]-self._FaceCenter[1]
+                                    
+                                    p = -self._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                    q = ((y1+y2)/(x1+x2))*abs(p)
+                                    
+                                    self.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],self._FaceCenter[1]-q, 1, 1)
+                                
+                                self.draw_line(self._FaceCenter[0],self._FaceCenter[1],x_mousePos,y_mousePos, 0, 0.1)                            
                                 
                     else:
                             self._rad = np.sqrt((self._FaceCenter[0]-x_mousePos)**2 + (self._FaceCenter[1]-y_mousePos)**2)
@@ -292,10 +300,12 @@ class ImageViewer(QtWidgets.QGraphicsView):
                             self.draw_circle([x_mousePos,y_mousePos,1], 'small')
                             if (x_mousePos < self._FaceCenter[0]):                            
                                 self._temp_storage_right.append((x_mousePos,y_mousePos))
-                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_right))  
+                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_right),'append')  
                             else:
                                 self._temp_storage_left.append((x_mousePos,y_mousePos))
-                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_left))  
+                                self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_left),'append')  
+                                
+                            self.draw_line(self._FaceCenter[0],self._FaceCenter[1],x_mousePos,y_mousePos, 0, 0.1)
                             
                                           
                 
@@ -345,7 +355,16 @@ class ImageViewer(QtWidgets.QGraphicsView):
 
    
     def mouseDoubleClickEvent(self, event):
-   
+        
+        if self._isManualEstimation is True: #the user is doing manual marking and wants to remove the information from the current frame
+            self._temp_storage_right = []
+            self._temp_storage_left = []
+            for item in self._scene.items():
+                if isinstance(item, QtWidgets.QGraphicsLineItem) or isinstance(item, QtWidgets.QGraphicsEllipseItem):
+                     if (item.pen().color() == QtCore.Qt.red) or  (item.pen().color() == QtCore.Qt.blue):                                                 
+                        self._scene.removeItem(item)
+                        
+            self.signalEmit.emit(None,0,'remove')#inform the main window that data should be removed
 
         QtWidgets.QGraphicsView.mouseDoubleClickEvent(self, event)
                 
@@ -418,6 +437,8 @@ class ImageViewer(QtWidgets.QGraphicsView):
         
         if Type is None:
             pen = QtGui.QPen(QtCore.Qt.green)
+        elif Type == 0:
+            pen = QtGui.QPen(QtCore.Qt.red)
         else:
             pen = QtGui.QPen(QtCore.Qt.blue)
             
