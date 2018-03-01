@@ -642,6 +642,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     
                     #show the photo and angular displacements if avaliable
                     if self._hasAngle[self._FrameIndex] is not None:
+                        print(self._hasAngle[self._FrameIndex])
                         self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
                         self.displayImage.setPhoto(img_show, self._sent_angle)                        
                     else:
@@ -673,8 +674,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                 
                                 x2 = self._temp_storage_right[1][self._FrameIndex][0]-self._FaceCenter[0]
                                 y2 = self._temp_storage_right[1][self._FrameIndex][1]-self._FaceCenter[1]
-                                
-                                p = self.displayImage._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                rad = np.sqrt(x1**2 + y1**2)
+                                p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
                                 q = ((y1+y2)/(x1+x2))*p
                                 
                                 self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],q+self._FaceCenter[1], 1, 1)
@@ -691,7 +692,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                 
                                 x2 = self._FaceCenter[0]-self._temp_storage_left[1][self._FrameIndex][0]
                                 y2 = self._temp_storage_left[1][self._FrameIndex][1]-self._FaceCenter[1]
-                                p = -self.displayImage._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                rad = np.sqrt(x1**2 + y1**2)
+                                p = -rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
                                 q = ((y1+y2)/(x1+x2))*abs(p)
 
                                 self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],self._FaceCenter[1]-q, 1, 1)
@@ -754,8 +756,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                 
                                 x2 = self._temp_storage_right[1][self._FrameIndex][0]-self._FaceCenter[0]
                                 y2 = self._temp_storage_right[1][self._FrameIndex][1]-self._FaceCenter[1]
-                                
-                                p = self.displayImage._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                rad = np.sqrt(x1**2 + y1**2)
+                                p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
                                 q = ((y1+y2)/(x1+x2))*p
                                 
                                 self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],q+self._FaceCenter[1], 1, 1)
@@ -773,7 +775,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                 
                                 x2 = self._FaceCenter[0]-self._temp_storage_left[1][self._FrameIndex][0]
                                 y2 = self._temp_storage_left[1][self._FrameIndex][1]-self._FaceCenter[1]
-                                p = -self.displayImage._rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+                                rad = np.sqrt(x1**2 + y1**2)
+                                p = -rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
                                 q = ((y1+y2)/(x1+x2))*abs(p)
 
                                 self.displayImage.draw_line(self._FaceCenter[0],self._FaceCenter[1],p+self._FaceCenter[0],self._FaceCenter[1]-q, 1, 1)
@@ -1419,7 +1422,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.timer.isActive(): #verify if the video is running 
             #activate slider and stop playback           
             self.timer.stop()
-
+        
+        #remove lines if there are lines
+        for item in self.displayImage._scene.items():
+            if isinstance(item, QtWidgets.QGraphicsLineItem) :
+                if (item.pen().color() == QtCore.Qt.blue):
+                    self.displayImage._scene.removeItem(item)
             
         if self._current_Image is not None:
             if self.displayImage._FaceCenter is not None:   
@@ -1449,9 +1457,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if action == 'append': #append the information in the current frame
             if position[0]<self._FaceCenter[0]:
-                angle_est = np.arctan(((self._FaceCenter[0]-position[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
-                if angle_est < 0 :
-                    angle_est = 180+angle_est
+#                angle_est = np.arctan(((self._FaceCenter[0]-position[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
+#                if angle_est < 0 :
+#                    angle_est = 180+angle_est
                 if number == 1:
                     self._hasAngleTempRight[0][self._FrameIndex] = True
                     self._temp_storage_right[0][self._FrameIndex] = [position[0],position[1]]#angle_est
@@ -1460,9 +1468,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     self._temp_storage_right[1][self._FrameIndex] = [position[0],position[1]]#angle_est
                 
             elif position[0]>self._FaceCenter[0]:
-                angle_est = np.arctan(((position[0] - self._FaceCenter[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
-                if angle_est < 0 :
-                    angle_est = 180+angle_est
+#                angle_est = np.arctan(((position[0] - self._FaceCenter[0])/(self._FaceCenter[1]-position[1])))*(180/np.pi)
+#                if angle_est < 0 :
+#                    angle_est = 180+angle_est
                 if number == 1:    
                     self._hasAngleTempLeft[0][self._FrameIndex] = True
                     self._temp_storage_left[0][self._FrameIndex] = [position[0],position[1]]#angle_est
@@ -1481,13 +1489,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._hasAngleTempLeft[1][self._FrameIndex] = False
             self._temp_storage_left[1][self._FrameIndex] = None
             
-        
-        print((self._temp_storage_right[0][self._FrameIndex],self._temp_storage_right[1][self._FrameIndex]),(self._temp_storage_left[0][self._FrameIndex],self._temp_storage_left[1][self._FrameIndex]))
-        
-        #print(self._temp_storage_right[0][self._FrameIndex],self._temp_storage_right[1][self._FrameIndex])
-        #print(self._temp_storage_left[0][self._FrameIndex],self._temp_storage_left[1][self._FrameIndex])
-        
-        
+          
         #deprecated - 28/2/2018
 #        r0 = self._temp_storage_right[0][self._FrameIndex]
 #        r1 = self._temp_storage_right[1][self._FrameIndex]
@@ -1521,27 +1523,6 @@ class MainWindow(QtWidgets.QMainWindow):
 #            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color:yellow;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))        
 #        elif (r0 is not None) and (r1 is not None) and (l0 is not None) and (l1 is not None):
 #            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-#
-#
-
-
-
-        
-#        if (self._temp_storage_right[0][self._FrameIndex] is not None) and (self._temp_storage_left[0][self._FrameIndex] is None) and (self._temp_storage_left[1][self._FrameIndex] is None):
-#            self._framelabel.setText('[<span style ="background-color: red;"> - </span>| ] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-#        if self._temp_storage_right[1][self._FrameIndex] is not None and (self._temp_storage_left[0][self._FrameIndex] is None) and (self._temp_storage_left[1][self._FrameIndex] is None):
-#            self._framelabel.setText('[<span style ="background-color: red;"> + </span>| ] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-#            
-#        if self._temp_storage_left[0][self._FrameIndex] is not None:
-#            self._framelabel.setText('[<span style ="background-color: red;"> + </span>|<span style ="background-color: red;"> - </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-#        if self._temp_storage_left[1][self._FrameIndex] is not None:
-#            self._framelabel.setText('[<span style ="background-color: red;"> + </span>|<span style ="background-color: red;"> + </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-#         
-#        #verify that all four points where properly selected 
-#        if (self._temp_storage_right[0][self._FrameIndex] is not None) and (self._temp_storage_right[1][self._FrameIndex] is not None) and (self._temp_storage_left[0][self._FrameIndex] is None) and (self._temp_storage_left[1][self._FrameIndex] is None):
-#            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
-#        else:
-#            self._framelabel.setText('[<span style ="background-color: red;"> \u2718 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
 
        
     def ManualEstimation_end(self):
@@ -1556,147 +1537,52 @@ class MainWindow(QtWidgets.QMainWindow):
 
         right = np.zeros((len(self._FileList),1))
         left = np.zeros((len(self._FileList),1))
-        
-        for m in range(0,len(self._hasAngleTempRight)):
-            if self._hasAngleTempRight[m] is True:
-                right[m] = self._temp_storage_right[m]
-                
-            if self._hasAngleTempLeft[m] is True:
-                left[m] = self._temp_storage_left[m]
-            
-#        right[np.array(self._hasAngleTempRight)] =  self._temp_storage_right
-#        left[np.array(self._hasAngleTempLeft)] =  self._temp_storage_left
+        self._hasAngle = [None]*len(self._FileList)
+        for m in range(0,len(self._FileList)):
+            if (self._hasAngleTempRight[0][m] is True) and (self._hasAngleTempRight[1][m] is True):
+                print(self._FaceCenter)
+                x1 = self._FaceCenter[0] - self._temp_storage_right[0][m][0]
+                y1 = self._FaceCenter[1] - self._temp_storage_right[0][m][1]
 
-        
-#        self._temp_storage_right = np.asarray(self._temp_storage_right)
-#        self._temp_storage_left = np.asarray(self._temp_storage_left)
-#        valid_index_right = np.where(self._temp_storage_right != None)
-#        #valid_index_right = np.array(valid_index_right[0], dtype=np.int)
-#        valid_index_left = np.where(self._temp_storage_left != None)
-#        #valid_index_left = np.array(valid_index_left[0], dtype=np.int)
-#        
-##        #verify that the same number of frames where analyzed in both sides of the face 
-##        if len(valid_index_right[0]) != len(valid_index_left[0]): #not the same number of frames analyzed in left and right 
-##            QtWidgets.QMessageBox.warning(self, 'Warning','Numbers of frames analyzed in each side of the face is different. Missing information will be filled with Not a Number (NaN).')
-##            pass
-##        else:
-##            if sum(valid_index_right[0]) != sum(valid_index_left[0]): #verify that the frames analyzed are the same 
-##                QtWidgets.QMessageBox.warning(self, 'Warning','Numbers of frames analyzed in each side of the face is different. Missing information will be filled with Not a Number (NaN).')
-##                pass
-##        
-#        #self._temp_storage_right = [i for i in self._temp_storage_right if i is not None]
-#        #self._temp_storage_left = [i for i in self._temp_storage_left if i is not None]
-#
-#        #take only useful index
-#        self._temp_storage_right = self._temp_storage_right[tuple(valid_index_right)]       
-#        self._temp_storage_left= self._temp_storage_left[tuple(valid_index_left)]
-#        #filters
-#        b, a = signal.butter(2, 0.25/0.5, btype = 'low')
-#        c, d = signal.butter(2, 0.001/0.5, btype = 'high')
-#        
-#       
-#        if (len(self._temp_storage_right) >  0) and (len(self._temp_storage_left) ==  0) : # no left data
-#            #low-pass filter if there is signal to filter
-#            #self._temp_storage_right = signal.lfilter(b, a, self._temp_storage_right)
-#            #create a time vector that will cover all processed frames
-#            time_vector = np.arange(valid_index_right[0][0], valid_index_right[0][-1]+1)
-#            #fill results. If a frame was skipped just leave a nan 
-#            right = [np.nan]*len(time_vector)
-#            count = 0
-#            for k in valid_index_right[0]:
-#                right[k] = self._temp_storage_right[count]
-#                count += 1
-#            #right[tuple(valid_index_right)] = self._temp_storage_right 
-#            right = np.asarray(right)
-#            left = np.zeros(right.shape)
-#            self._results = np.c_[right, left]
-#            self._results = np.c_[time_vector, self._results]
-#            
-#            
-#            time_vector = valid_index_right[0]
-#            right = self._temp_storage_right
-#            left = np.zeros(right.shape)
-#            self._results = np.c_[right, left]
-#            self._results = np.c_[time_vector, self._results]
-#            count = 0 
-#            for k in valid_index_right[0]:
-#                self._hasAngle[k] = self._temp_storage_right[count]
-#                count += 1
-#            
-#            
-#        elif (len(self._temp_storage_left) >  0) and (len(self._temp_storage_right) ==  0) :   #no right data
-#                        #low-pass filter if there is signal to filter
-#            #self._temp_storage_left = signal.lfilter(b, a, self._temp_storage_left)
-#            #create a time vector that will cover all processed frames
-#            time_vector = np.arange(valid_index_left[0][0], valid_index_left[0][-1]+1)
-#            #fill results. If a frame was skipped just leave a nan 
-#            left = [np.nan]*len(time_vector)
-#            count = 0
-#            for k in valid_index_left[0]:
-#                left[k] = self._temp_storage_left[count]
-#                count += 1
-#            #right[tuple(valid_index_right)] = self._temp_storage_right 
-#            left= np.asarray(left)
-#            right = np.zeros(left.shape)
-#            self._results = np.c_[right, left]
-#            self._results = np.c_[time_vector, self._results]
-#            
-#            
-#            time_vector = valid_index_right[0]
-#            right = self._temp_storage_right
-#            left = np.zeros(right.shape)
-#            self._results = np.c_[right, left]
-#            self._results = np.c_[time_vector, self._results]
-#            count = 0 
-#            for k in valid_index_right[0]:
-#                self._hasAngle[k] = self._temp_storage_right[count]
-#                count += 1
-        
+                x2 = self._FaceCenter[0] - self._temp_storage_right[1][m][0]
+                y2 = self._FaceCenter[1] - self._temp_storage_right[1][m][1]
+
+                rad = np.sqrt(x1**2 + y1**2)
+                p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))                 
+                q = ((y1+y2)/(x1+x2))*p
+                #p = self._FaceCenter[0]-p
+                #q = self._FaceCenter[1]-q
+                
+                angle_est = np.arctan(((p)/(-q)))*180/np.pi + 90
+
+#                if angle_est < 0 :
+#                    angle_est = 180+angle_est
+                right[m] = angle_est
+                self._hasAngle[m] = np.array([m,right[m],left[m]])
+            if (self._hasAngleTempLeft[0][m] is True) and (self._hasAngleTempLeft[1][m] is True):
+                x1 = self._FaceCenter[0] - self._temp_storage_left[0][m][0]
+                y1 = self._FaceCenter[1] - self._temp_storage_left[0][m][1]
+
+                x2 = self._FaceCenter[0] - self._temp_storage_left[1][m][0]
+                y2 = self._FaceCenter[1] - self._temp_storage_left[1][m][1]
+
+                rad = np.sqrt(x1**2 + y1**2)
+                p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))                
+                q = ((y1+y2)/(x1+x2))*p
+
+                angle_est = np.arctan(((p)/(q)))*180/np.pi -90
+#                if angle_est < 0 :
+#                    angle_est = 180+angle_est
+                                
+                left[m] = angle_est
+                self._hasAngle[m] = np.array([m,right[m],left[m]])
+                
+                
         time_vector = np.arange(0,len(right))
         self._results = np.c_[right, left]
         self._results = np.c_[time_vector, self._results]
         
-        for m in range(0,len(self._hasAngleTempRight)):
-            if (self._hasAngleTempRight[m] is True) or (self._hasAngleTempLeft[m] is True):
-                self._hasAngle[m]=self._results[m]
-            
         print(len(self._results))
-#        print(3)
-#        #organize results to present in a consistent way 
-#        min_value = min(valid_index_right[0][0], valid_index_left[0][0])
-#        max_value = max(valid_index_right[0][-1], valid_index_left[0][-1])
-#        print(4)
-#        time_vector = np.arange(min_value, max_value+1)
-#        right = [np.nan]*time_vector
-#        right[tuple(valid_index_right)] = self._temp_storage_right 
-#        left = [np.nan]*time_vector
-#        left[tuple(valid_index_left)] = self._temp_storage_left
-#        print(5)
-#        time_vector = np.linspace(valid_index[0], valid_index[-1], len(valid_index))
-#        print(signal.lfilter(b, a, self._temp_storage_right))
-#        print(signal.lfilter(b, a, self._temp_storage_left))
-#        print(1)
-#        self._results = np.c_[time_vector, signal.lfilter(b, a, self._temp_storage_right), signal.lfilter(b, a, self._temp_storage_left)]
-#        print(1)
-#        self._hasAngle[valid_index] = self._results[valid_index]
-#        print(1)
-        
-        #self._temp_storage_right= self._temp_storage_right-np.append(self._temp_storage_right[0],self._temp_storage_right[0:-1])
-        #self._temp_storage_left= self._temp_storage_right-np.append(self._temp_storage_left[0],self._temp_storage_left[0:-1])
-        
-#        #print(self._temp_storage_right,self._temp_storage_left)
-#        fig = plt.figure()
-#        ax1 = fig.add_subplot(211)
-#        ax1.plot(time_vector,right)
-#        ax1.set_ylabel('Displacement (deg)')
-#        ax1.set_title('Right Side')
-#        ax2 = fig.add_subplot(212)
-#        ax2.plot(time_vector,left)
-#        ax2.set_ylabel('Displacement (deg)')
-#        ax2.set_xlabel('Time (s)')
-#        ax2.set_title('Left Side')
-#        
-
     
     def Screenshot_function(self):
         #save the current view 

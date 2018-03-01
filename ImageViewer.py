@@ -75,11 +75,14 @@ class ImageViewer(QtWidgets.QGraphicsView):
                             if item.pen().color() == QtCore.Qt.blue:
                                 self._scene.removeItem(item)
                 
-                l_bar = int(self._FaceCenter[1]*0.75)
+#                l_bar = int(self._FaceCenter[1]*0.75)
+                l_bar = self._FaceCenter[1]*0.75
                 dy_right= l_bar*np.tan(result[0]*np.pi/180)
                 dy_left= l_bar*np.tan(result[1]*np.pi/180)
-                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]-l_bar, int(self._FaceCenter[1]-dy_right),1,3)
-                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]+l_bar, int(self._FaceCenter[1]-dy_left),1,3)
+#                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]-l_bar, int(self._FaceCenter[1]-dy_right),1,3)
+#                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]+l_bar, int(self._FaceCenter[1]-dy_left),1,3)
+                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]-l_bar, self._FaceCenter[1]-dy_right,1,3)
+                self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]+l_bar, self._FaceCenter[1]-dy_left,1,3)
         else:
             self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
             self._photo.setPixmap(QtGui.QPixmap())
@@ -314,13 +317,13 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     self._isManualEstimation = False
                     self._rad = None
                     for item in self._scene.items():
-                        if isinstance(item, QtWidgets.QGraphicsEllipseItem): 
-                            self._scene.removeItem(item)
+                        if isinstance(item, QtWidgets.QGraphicsEllipseItem) or isinstance(item, QtWidgets.QGraphicsLineItem): 
+                            if (item.pen().color() == QtCore.Qt.red) or (item.pen().color() == QtCore.Qt.blue) or (item.pen().color() == QtCore.Qt.yellow):
+                                self._scene.removeItem(item)
                     self._temp_storage_right = []    
                     self._temp_storage_left = []    
                     self.finished.emit()
 
-                    
                         
             elif event.button() == QtCore.Qt.LeftButton:
                     
@@ -331,7 +334,9 @@ class ImageViewer(QtWidgets.QGraphicsView):
             QtWidgets.QGraphicsView.mousePressEvent(self, event)
             
     def mouseReleaseEvent(self, event):     
-        #this function defines what happens when you release the mouse click 
+        #this function defines what happens when you release the mouse click
+        self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+        self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         if self._isFaceCenter is True:
             self._isFaceCenter = False
             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
@@ -350,7 +355,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
             #self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         
-
+        
         QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
 
    
@@ -483,7 +488,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
         elif circletype == 'big':
             #ellipse will be yellow
             pen = QtGui.QPen(QtCore.Qt.yellow)
-            pen.setWidth(1)
+            pen.setWidth(0.5)
             Ellipse.setPen(pen)   
         elif circletype == 'small':
             #ellipse will be yellow
