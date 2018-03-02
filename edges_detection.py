@@ -84,15 +84,19 @@ cv2.imshow("Video1",frame)
 
 
 #dilate to remove whiskers and other small objects
-kernel = np.ones((9,9), np.uint8)
+kernel = np.ones((11,11), np.uint8)
 im1 = cv2.dilate(frame,kernel,iterations=1)
 #apply threshold so that only the face is selected. I used the mean brightness value
 th,_,_,_ = cv2.mean(im1)
 im1[im1>np.ceil(th)] = 255
 im1[im1<255] = 0 
 
+#im1 = cv2.GaussianBlur(im1,(13,13),0)
 
-temp = cv2.bitwise_not(im1)
+#temp = cv2.bitwise_not(im1)
+
+cv2.imshow("im",im1)
+#%%
 temp[temp==255] = 1
 face = np.multiply(temp,frame)
 cv2.imshow("Video2",face.astype(np.uint8))

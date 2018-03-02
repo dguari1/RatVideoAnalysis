@@ -97,6 +97,7 @@ h,w = frame.shape
 #dilate to remove whiskers and other small objects
 kernel = np.ones((11,11), np.uint8)
 im1 = cv2.dilate(frame,kernel,iterations=1)
+
 #apply threshold so that only the face is selected. I used the mean brightness value
 th,_,_,_ = cv2.mean(im1)
 im1[im1>np.ceil(th)] = 255

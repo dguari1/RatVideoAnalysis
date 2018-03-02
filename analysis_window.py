@@ -11,6 +11,8 @@ import cv2
 import time
 import numpy as np
 from scipy import signal 
+from sklearn.decomposition import PCA
+
 
 
 from multiprocessing import Pool
@@ -32,7 +34,7 @@ Work to do: Create a % bar that indicates the state of things
 """
 
 def rot_estimation(ListofFiles,ExtraInfo):  
-    print(2)
+
     scale = 0.5
     
     #function that takes care of computing the angular rotation between frames in ListofFiles
@@ -105,12 +107,14 @@ def rot_estimation(ListofFiles,ExtraInfo):
     if lims_y[1]>h_orig:
         lims_y[1]=h_orig    
         
-    print(lims_x,lims_y)
+    #print(lims_x,lims_y)
         
     #apply threshold
     image[image>threshold] = 255
     #invert image to improve results
     image = cv2.bitwise_not(image)
+    
+    cv2.imshow("cc",image)
 
     
     #create the mask that will cover only the whiskers in left and right sides of the face
@@ -278,11 +282,232 @@ def rot_estimation(ListofFiles,ExtraInfo):
     return results    
 
 
+def test_line_like_ness(frame, pos, m_size=None):
+    #now, every seed needs to be tested for the presence of a whisker, this will be done by selecting a 7x7
+    #matrix centered on the seed. Then, the local minima from every row and every column will be localized, if there is 
+    #a whisker then these local minimina should resemble a line, if not then they won't. The line-like quality of the 
+    #local minima will be quantified using a Pricipal-Component-Decomposition (PCA) of the dots. If the local 
+    #minima does resemble a line, then the principal axis of the data will be resemble an ellipse with a very small excentricity (>0.98)
+   
+    #frame -> image
+    #pos -> [y,x] position of central pixel 
+    #msize -> size of selected rectangular area, default 7
+    if m_size is None:
+        m_size =7
+    
+    #initialize the PCA object, this is rather slow...
+    pca = PCA(n_components=2)
+
+    selected_area = frame[pos[0]-int(m_size/2):pos[0]+int(m_size/2)+1,pos[1]-int(m_size/2):pos[1]+int(m_size/2)+1]
+    
+    
+    #search for minima in each row, this will detect whiskers that are not horizontal
+    min_position = np.zeros([m_size])
+    for m in range(0,m_size):
+        min_position[m] = np.argmin(selected_area[m,:])
+        
+    if abs(min_position[int(m_size/2)]-int(m_size/2)) > 1:        
+        pass  
+        exc_v = 0      
+    else:
+    
+        Data = np.c_[min_position-int(m_size/2),np.linspace(int(m_size/2),-int(m_size/2),m_size)]
+        pca.fit(Data)       
+        
+        c1 = pca.explained_variance_[0]
+        c2 = pca.explained_variance_[1]
+        if c1>=c2:
+            major_axis = c1# np.sqrt(c1)
+            minor_axis = c2#np.sqrt(c2)
+        else:
+            major_axis = c2#np.sqrt(c2)
+            minor_axis = c1#np.sqrt(c1)
+        
+        exc_v= np.sqrt(1-(minor_axis/major_axis))
+        
+    
+    if exc_v < 0.985:
+        #search for minima in each column, this will detect whiskers that are horizontal
+        min_position = np.zeros([m_size])
+        for m in range(0,m_size):
+            min_position[m] = np.argmin(selected_area[:,m])
+            
+        if abs(min_position[int(m_size/2)]-int(m_size/2)) > 1:        
+            pass  
+            exc_v = 0      
+        else:
+        
+            Data = np.c_[np.linspace(int(m_size/2),-int(m_size/2),m_size),min_position-int(m_size/2)]
+            pca.fit(Data)       
+            
+            c1 = pca.explained_variance_[0]
+            c2 = pca.explained_variance_[1]
+            if c1>=c2:
+                major_axis = c1# np.sqrt(c1)
+                minor_axis = c2#np.sqrt(c2)
+            else:
+                major_axis = c2#np.sqrt(c2)
+                minor_axis = c1#np.sqrt(c1)
+            
+            exc_v= np.sqrt(1-(minor_axis/major_axis))
+        
+    return exc_v
+
+
+def initial_conditions(ListofFiles,foldername, FaceCenter, threshold):
+    
+    #reaf first image of the list to estimate initial conditions
+    image = cv2.imread(os.path.join(foldername,ListofFiles[0]),0)  #last 0 means gray scale
+    #find its shape
+    h,w = image.shape
+    
+    #dilate to remove whiskers and other small objects
+    kernel = np.ones((11,11), np.uint8)
+    im = cv2.dilate(image,kernel,iterations=1)
+    #apply threshold so that only the face is selected. I used the mean brightness value
+    th,_,_,_ = cv2.mean(im)
+    im[im>np.ceil(th)] = 255
+    im[im<255] = 0 
+    
+    #now we have an image on 255 (white) and 0 (black) with the face countour, all small details where removed 
+    #apply a LARGE Gaussian filter to "smooth" the transition between face/no-face
+    im = cv2.GaussianBlur(im,(13,13),0)
+   
+    #apply canny filter to detect edges
+    edges = cv2.Canny(im,50,100) 
+    
+    
+    #find how far is the selected Face Center from the snout
+    where_at_center = np.where(edges[FaceCenter[1],:]==255)
+    dist_face_center = FaceCenter[0] - where_at_center[0][0]
+    
+    #create a mask with a circle centered at the FaceCenter and radius 1.25 the distance between FaceCenter and the snout
+    mask = np.zeros((h,w), dtype = np.uint8)
+    mask = cv2.circle(mask, tuple(FaceCenter), int(dist_face_center*1.5), [255,255,255])
+    
+    #find where the mask and the edges coincide 
+    coinc = np.where(np.multiply(edges,mask)!= 0)
+    #in the right
+    st_right = [coinc[1][0], coinc[0][0]]
+    #and left
+    st_left = [coinc[1][1], coinc[0][1]]
+    
+    #take the right side of the image
+    right = image.copy()
+    right = right[:,0:FaceCenter[0]]
+    right_mask = mask.copy()
+    right_mask = right_mask[:,0:FaceCenter[0]]
+    #find the pixels where the circle was drawn 
+    mask_position = np.where(right_mask == 255) #pixels in the circle
+    
+    #find pixels in the semi-circle that do no coincide with the face and are at least 10 pixels (in y) apart from the face 
+    cross_ = np.where(mask_position[0]>st_right[1]+15) 
+    y_position = mask_position[0][cross_[0][0]:]
+    x_position = mask_position[1][cross_[0][0]:]
+    intensity = np.zeros([len(y_position)])
+    #find the pixel intensity around the semi-circle (this will not include the face)
+    for m in range(0,len(y_position)):
+        intensity[m] = right[y_position[m],x_position[m]]   
+        
+    whisker_shadows_right = np.where(intensity < threshold) #determine what are whiskers based on threshold selected by the user
+    
+    #test the possible whisker to see if there actually whiskers. We only need the most caudal and most rostal whiskers 
+    k=0
+    while True:
+        pp = test_line_like_ness(image,[y_position[whisker_shadows_right[0][k]],x_position[whisker_shadows_right[0][k]]] , m_size=7) 
+        if pp>0.985:
+            break
+        k+=1
+        
+    cauldal_right = [x_position[whisker_shadows_right[0][k]], y_position[whisker_shadows_right[0][k]]]
+
+    k = len(whisker_shadows_right[0])-1
+    while True:
+        pp = test_line_like_ness(image,[y_position[whisker_shadows_right[0][k]],x_position[whisker_shadows_right[0][k]]] , m_size=7) 
+        if pp>0.985:
+            break
+        k-=1    
+        
+    rostal_right = [x_position[whisker_shadows_right[0][k]], y_position[whisker_shadows_right[0][k]]]
+    
+    #find the angle between the most rostal and most caudal whiskers
+    x1 = FaceCenter[0]-cauldal_right[0]
+    y1 = FaceCenter[1]-cauldal_right[1]
+    
+    x2 = FaceCenter[0]-rostal_right[0]
+    y2 = FaceCenter[1]-rostal_right[1]
+    rad = np.sqrt(x1**2 + y1**2)
+    p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+    q = ((y1+y2)/(x1+x2))*p
+    
+    angle_right = np.arctan(q/p)*180/np.pi
+    
+#    l_bar = FaceCenter[1]*0.75
+#    dy_right= l_bar*np.tan(angle_right)
+#    
+#    print(FaceCenter,[p,q],FaceCenter[0]-l_bar, FaceCenter[1]-dy_right)
+    
+    
+    #take the left side of the image
+    left = image.copy()
+    left = left[:,FaceCenter[0]:]
+    left_mask = mask.copy()
+    left_mask = left_mask[:,FaceCenter[0]:]
+    
+    mask_position= np.where(left_mask ==255)
+    cross_ = np.where(mask_position[0]>st_left[1]+15)
+    y_position = mask_position[0][cross_[0][0]:]
+    x_position = mask_position[1][cross_[0][0]:]
+    intensity = np.zeros([len(y_position)])
+    for m in range(0,len(y_position)):
+        intensity[m] = left[y_position[m],x_position[m]]
+    
+
+    whisker_shadows_left = np.where(intensity < threshold)
+    #test the possible whisker to see if there actually whiskers. We only need the most caudal and most rostal whiskers 
+    k=0
+    while True:
+        pp = test_line_like_ness(image,[y_position[whisker_shadows_left[0][k]],x_position[whisker_shadows_left[0][k]] + FaceCenter[0]] , m_size=7) 
+        if pp>0.985:
+            break
+        k+=1
+
+    cauldal_left = [x_position[whisker_shadows_left[0][k]]+FaceCenter[0], y_position[whisker_shadows_left[0][k]]]
+
+    k = len(whisker_shadows_left[0])-1
+    while True:
+        pp = test_line_like_ness(image,[y_position[whisker_shadows_left[0][k]],x_position[whisker_shadows_left[0][k]] + FaceCenter[0]] , m_size=7) 
+        if pp>0.985:
+            break
+        k-=1    
+        
+    rostal_left = [x_position[whisker_shadows_left[0][k]]+FaceCenter[0], y_position[whisker_shadows_left[0][k]]]
+    
+    
+    #find the angle between the most rostal and most caudal whiskers
+    x1 = cauldal_left[0]-FaceCenter[0]
+    y1 = FaceCenter[1]-cauldal_left[1]
+    
+    x2 = rostal_left[0]-FaceCenter[0]
+    y2 = FaceCenter[1]-rostal_left[1]
+    rad = np.sqrt(x1**2 + y1**2)
+    p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+    q = ((y1+y2)/(x1+x2))*p
+    
+    angle_left = np.arctan(q/p)*180/np.pi
+    
+#    l_bar = FaceCenter[1]*0.75
+#    dy_left= l_bar*np.tan(angle_left)
+#    
+#    print(FaceCenter,[p,q],FaceCenter[0]+l_bar, FaceCenter[1]-dy_left)
+    
+    return np.array([angle_right, angle_left])
+
 
 class FramesAnalysis(QObject):
     
     finished = pyqtSignal()
-    Results = pyqtSignal(object, float, int)
+    Results = pyqtSignal(object, object, float, int)
     
     def __init__(self,pool,folder_name,ListofFiles, FaceCenter, RightROI, LeftROI, threshold, angles, parallel, resultsInfo):
         super(FramesAnalysis, self).__init__()
@@ -300,8 +525,12 @@ class FramesAnalysis(QObject):
 
     @pyqtSlot()
     def ProcessFrames(self):
-       
-        Files = self._ListofFiles      
+        st_time = time.time()  
+        Files = self._ListofFiles   
+        
+        #compute initial conditions on left and right sides
+        init_cond = initial_conditions(Files, self._foldername, self._FaceCenter, self._threshold)
+
         rotation_angle = self._resultsInfo._rotation_angle  #get the desired rotation angle 
         
         #is the processing going to happen in parallel?
@@ -352,7 +581,7 @@ class FramesAnalysis(QObject):
             #the function that will be run in parallel, this is to avoid some 
             #limitations with the parallel processing tool
             
-            st_time = time.time()  
+            
             pool = self._Pool #Make a local copy Pool(processes=agents)
 
             if self._resultsInfo._AnalizeResults == 'Both': #analize both sides of the face
@@ -379,12 +608,13 @@ class FramesAnalysis(QObject):
                 for k in range(0,len(res_right)):
                     temp = res_right[k]
                     results_right = np.append(results_right,temp[1:]) 
+                  
                       
                 results_left = np.zeros((1,1),dtype = np.float64)
                 for k in range(0,len(res_left)):
                     temp = res_left[k]
-                    results_left = np.append(results_left,temp[1:])   
-    
+                    results_left = np.append(results_left,temp[1:]) 
+                      
                 #put everythin togehter 
                 results= np.c_[results_right, results_left]  
                 
@@ -406,6 +636,7 @@ class FramesAnalysis(QObject):
                 for k in range(0,len(res_right)):
                     temp = res_right[k]
                     results_right = np.append(results_right,temp[1:]) 
+                    
     
                 #put everythin togehter 
                 results= np.c_[results_right, np.zeros(results_right.shape)]
@@ -427,6 +658,7 @@ class FramesAnalysis(QObject):
                 for k in range(0,len(res_left)):
                     temp = res_left[k]
                     results_left = np.append(results_left,temp[1:])   
+                    
     
                 #put everythin togehter 
                 results= np.c_[np.zeros(results_left.shape), results_left]  
@@ -446,9 +678,11 @@ class FramesAnalysis(QObject):
                                 [self._threshold], [self._angles], ['Right'], [rotation_angle]))
                 #print('Right_np')
                 
+                
                 results_left = rot_estimation(FilesforProcessing, zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
                                 [self._threshold], [self._angles], ['Left'], [rotation_angle]))
+                
                 #print('Left_np')
                 duration = time.time()-st_time 
                 
@@ -460,6 +694,7 @@ class FramesAnalysis(QObject):
                 results_right = rot_estimation(FilesforProcessing, zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
                                 [self._threshold], [self._angles], ['Right'], [rotation_angle]))
+                
 
                 duration = time.time()-st_time 
                 
@@ -471,6 +706,7 @@ class FramesAnalysis(QObject):
                 results_left = rot_estimation(FilesforProcessing, zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
                                 [self._threshold], [self._angles], ['Left'], [rotation_angle]))
+                
                 #print('Left_np')
                 duration = time.time()-st_time 
                 
@@ -479,7 +715,7 @@ class FramesAnalysis(QObject):
         
                                                                                             
         #submit results to the main window 
-        self.Results.emit(results, duration, agents)
+        self.Results.emit(results, init_cond, duration, agents)
         #now inform that is over
         self.finished.emit()
         
@@ -520,6 +756,7 @@ class AnalysisWindow(QDialog):
         self._duration = 0
         self._agents = 1 
         self._results = None
+        self._init_cond = None
         self._hasAngle = None #variable that will inform if there is angle information for a particular frame
 
         self.initUI()
@@ -646,10 +883,12 @@ class AnalysisWindow(QDialog):
         return 
 
 
-    def GetResultsFromProcess(self, results, duration, agents):
+    def GetResultsFromProcess(self, results, init_cond, duration, agents):
         self._agents = agents
         self._results = results
+        self._init_cond = init_cond
         self._duration = duration
+        
         
         #if finilized then do signal analysis 
         self.SignalAnalysis()
@@ -701,7 +940,7 @@ class AnalysisWindow(QDialog):
         
         #if requested, then save data in a csv file
         time_vector = np.linspace(self._ResultsInfo._InitFrame-1, self._ResultsInfo._EndFrame-1, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
-        self._results = np.c_[time_vector*(1/Fs), self._results]
+        self._results = np.c_[time_vector*(1/Fs), self._results+self._init_cond]
     
     
         #we need to inform to the main program what frames have been processed and what frames haven't 

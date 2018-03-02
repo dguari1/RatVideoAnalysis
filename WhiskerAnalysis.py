@@ -642,7 +642,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     
                     #show the photo and angular displacements if avaliable
                     if self._hasAngle[self._FrameIndex] is not None:
-                        print(self._hasAngle[self._FrameIndex])
                         self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
                         self.displayImage.setPhoto(img_show, self._sent_angle)                        
                     else:
