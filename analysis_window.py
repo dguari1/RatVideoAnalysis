@@ -71,8 +71,20 @@ def rot_estimation(ListofFiles,ExtraInfo):
     #read first image in gray scale
     image = cv2.imread(os.path.join(foldername,ListofFiles[0]),0)  #last 0 means gray scale
     
-    
-    
+    #################
+    #dilate to remove whiskers and other small objects
+    kernel = np.ones((11,11), np.uint8)
+    face_edge = cv2.dilate(image,kernel,iterations=1)
+
+    #apply threshold so that only the face is selected. I used the mean brightness value
+    th,_,_,_ = cv2.mean(face_edge)
+    face_edge[face_edge>np.ceil(th)] = 255
+    face_edge[face_edge<255] = 0 
+    face_edge[face_edge==255] = 1
+    #face_edge is 1 for the face and 0 for everything else 
+    image = np.multiply(image,face_edge).astype(np.uint8)
+    ######################
+
     #remove the first element from the list
     ListofFiles = np.delete(ListofFiles,[0])
     
@@ -113,9 +125,8 @@ def rot_estimation(ListofFiles,ExtraInfo):
     image[image>threshold] = 255
     #invert image to improve results
     image = cv2.bitwise_not(image)
-    
-    cv2.imshow("cc",image)
 
+    
     
     #create the mask that will cover only the whiskers in left and right sides of the face
     mask = np.zeros(image.shape, np.uint8)    
@@ -134,7 +145,10 @@ def rot_estimation(ListofFiles,ExtraInfo):
         
         if file is not None:
             #load a new image in gray scale
-            image = cv2.imread(os.path.join(foldername,file),0)  
+            image = cv2.imread(os.path.join(foldername,file),0) 
+            ############
+            image = np.multiply(image,face_edge).astype(np.uint8)
+            #############
             if rotation_angle is not None: #rotate      
                 image = cv2.warpAffine(image, M_overall, (w_orig, h_orig))
             

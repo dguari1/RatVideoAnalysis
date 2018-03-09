@@ -47,15 +47,16 @@ def sort_list_with_embedded_numbers(FileList):
 
 
 def get_pixmap(image, threshold=None, rotation_angle = None):
-    #conver an opencv image to a QtImage (Pixmap) this function takes into consideration
+    #convert an opencv image to a QtImage (Pixmap) this function takes into consideration
     #if the image is color or gray and if there is a threshold defined or not
+
     if rotation_angle is None: #no rotation
         pass
     else: #user wants to rotate the image, lets do it...
         M = cv2.getRotationMatrix2D((int(image.shape[1]/2),int(image.shape[0]/2)), rotation_angle, 1.0)
         image = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
     
-    if threshold is None:                        
+    if threshold is None: #there is no threshold, just show the image as it is                 
         #separate color and gray images
         if len(image.shape) == 3: #color image
             height, width, channel = image.shape
@@ -68,23 +69,57 @@ def get_pixmap(image, threshold=None, rotation_angle = None):
         
         img_show = QtGui.QPixmap.fromImage(img_Qt)
     else:
-        #function differs if image is color or gray         
-        if len(image.shape) == 3: #color image     
-            #convert to gray
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            #apply threshold
-            image[image>threshold] = 255
-            height, width = image.shape
-            bytesPerLine = 1 * width
-            img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
-            img_show = QtGui.QPixmap.fromImage(img_Qt)
-        elif len(image.shape) == 2: #gray image
-            image[image>threshold] = 255
-            height, width = image.shape
-            bytesPerLine = 1 * width
-            img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
-        
-        img_show = QtGui.QPixmap.fromImage(img_Qt) 
+
+        #the image background will be removed, this is different if done using threshold or an image of the background
+        if isinstance(threshold, int): #if threshold is int then user decided to removed background using thresholding 
+            #function differs if image is color or gray         
+            if len(image.shape) == 3: #color image     
+                #convert to gray
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                #apply threshold
+                image[image>threshold] = 255
+                height, width = image.shape
+                bytesPerLine = 1 * width
+                img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+                img_show = QtGui.QPixmap.fromImage(img_Qt)
+            elif len(image.shape) == 2: #gray image
+                image[image>threshold] = 255
+                height, width = image.shape
+                bytesPerLine = 1 * width
+                img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+            
+            img_show = QtGui.QPixmap.fromImage(img_Qt) 
+            
+        else:
+            if len(image.shape) == 3: #color image     
+                #convert to gray
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                #subtract background from image
+                image = cv2.subtract(threshold,image).astype(np.uint8)
+                image[image<12] = 0
+                
+                #image = (image/np.max(image))*255
+                #image = image.astype(np.uint8)
+                image = cv2.bitwise_not(image)
+                image = cv2.equalizeHist(image)
+                height, width = image.shape
+                bytesPerLine = 1 * width
+                img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+                img_show = QtGui.QPixmap.fromImage(img_Qt)
+            elif len(image.shape) == 2: #gray image
+                image = cv2.subtract(threshold,image).astype(np.uint8)
+                image[image<12] = 0
+                
+                #image = (image/np.max(image))*255
+                #image = image.astype(np.uint8)
+                image = cv2.bitwise_not(image)
+                image = cv2.equalizeHist(image)
+                height, width = image.shape
+                bytesPerLine = 1 * width
+                img_Qt = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_Indexed8)
+            
+            img_show = QtGui.QPixmap.fromImage(img_Qt) 
+            
             
     return img_show            
             
@@ -234,20 +269,29 @@ class MainWindow(QtWidgets.QMainWindow):
         
         ImageMenu.addMenu(ROIMenu)
         
-        ThresholdMenu = QtWidgets.QMenu("Threshold", self)
-        ThresholdMenu.setStyleSheet("font-size:18px;")
         
-        ThresholdAction = ThresholdMenu.addAction("Find Threshold")
-        ThresholdAction.setShortcut("Ctrl+T")
-        ThresholdAction.setStatusTip('Find threshold. Image will be converted to gray scale')
-        ThresholdAction.triggered.connect(self.threhold_function)
+        BackGroundMenu = QtWidgets.QMenu("BackGround", self)
+        BackGroundMenu.setStyleSheet("font-size:18px;")
         
-        ResetThresholdAction = ThresholdMenu.addAction("Reset Threshold")
+        self.BackgroundAction = BackGroundMenu.addAction("Load BackGround")
+        self.BackgroundAction.setShortcut("Ctrl+B")
+        self.BackgroundAction.triggered.connect(self.background_function)
+        self.BackgroundAction.setStatusTip('Remove background by loading images representing the background. Image will be converted to gray scale')
+        
+        #ThresholdMenu = QtWidgets.QMenu("Threshold", self)
+        #ThresholdMenu.setStyleSheet("font-size:18px;")
+        
+        self.ThresholdAction = BackGroundMenu.addAction("Find Threshold")
+        self.ThresholdAction.setShortcut("Ctrl+T")
+        self.ThresholdAction.setStatusTip('Remove background by thresholding. Image will be converted to gray scale')
+        self.ThresholdAction.triggered.connect(self.threhold_function)
+        
+        ResetThresholdAction = BackGroundMenu.addAction("Reset BackGround")
         ResetThresholdAction.setShortcut("Ctrl+Y")
-        ResetThresholdAction.setStatusTip('Reset threshold')
+        ResetThresholdAction.setStatusTip('Reset background removal')
         ResetThresholdAction.triggered.connect(self.reset_threshold_function)
         
-        ImageMenu.addMenu(ThresholdMenu)
+        ImageMenu.addMenu(BackGroundMenu)
         
         
         RotationdMenu = QtWidgets.QMenu("Rotation", self)
@@ -303,6 +347,12 @@ class MainWindow(QtWidgets.QMainWindow):
         
         ProcessMenu = MenuBar.addMenu("&Analysis")
         
+        #InitiConditionsAction = ProcessMenu.addAction("View Initial Conditions")
+        #InitiConditionsAction.setShortcut("Ctrl+I")
+        #InitiConditionsAction.setStatusTip('Visualize initial angles')
+        #InitiConditionsAction.triggered.connect(self.view_init_conditions)
+        
+        
         ProcessAction = ProcessMenu.addAction("Start Tracking")
         ProcessAction.setShortcut("Ctrl+G")
         ProcessAction.setStatusTip('Estimate whisker angular displacement')
@@ -325,7 +375,7 @@ class MainWindow(QtWidgets.QMainWindow):
         TestParametersAction.triggered.connect(self.testParams_function)
         
         ManualEstimationAction = ProcessMenu.addAction("Manual estimation")
-        ManualEstimationAction.setShortcut("Ctrl+B")
+        ManualEstimationAction.setShortcut("Ctrl+I")
         ManualEstimationAction.setStatusTip('Manually track the most caudal and rostal whiskers in both sides of the face. Double click cleans current frame. ')
         ManualEstimationAction.triggered.connect(self.ManualEstimation_function)
 
@@ -414,9 +464,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._hasAngle = [None]*len(self._FileList) #no angles for recently uploaded frames
                 self._Folder = name
                 
-                thefile = open(os.path.join(name,'tt1.txt'), 'w')
-                for item in self._FileList:
-                    thefile.write("%s\n" % item)
+                #thefile = open(os.path.join(name,'tt1.txt'), 'w')
+                #for item in self._FileList:
+                #    thefile.write("%s\n" % item)
                 self._rotation_angle = None #rotation angle 
                 
                 self._slider.setMinimum(1)
@@ -425,7 +475,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._slider.setValue(1)
                 self._slider.blockSignals(False)
                 self._slider.setEnabled(True)
-        
+                
+                
+                #activate all menu options that can be unactive
+                self.BackgroundAction.setEnabled(True)
+                self.ThresholdAction.setEnabled(True)
+                self.PlayAction.setEnabled(True)
+                self.SpeedAction.setEnabled(True)
+                self.StopAction.setEnabled(True)
+                        
    
                 #and pick the first one 
                 temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
@@ -498,6 +556,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._slider.blockSignals(False)
                 self._slider.setEnabled(True)
                 
+                
+                #activate all menu options that can be unactive
+                self.BackgroundAction.setEnabled(True)
+                self.ThresholdAction.setEnabled(True)
+                self.PlayAction.setEnabled(True)
+                self.SpeedAction.setEnabled(True)
+                self.StopAction.setEnabled(True)
         
    
                 #and pick the first one 
@@ -1070,6 +1135,49 @@ class MainWindow(QtWidgets.QMainWindow):
             self.displayImage._FaceCenter = None
 
     
+    
+    def background_function(self):
+        #stop playback if active
+        if self.timer.isActive(): #verify is the video is running 
+            #activate slider and stop playback           
+            self.timer.stop()
+            
+        if self._current_Image is not None:
+            #load folder containing the background images
+            name = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select directory')
+            if not name:
+                pass
+            else:
+                #fom the folder select only images with certain extension
+                Files = os.listdir(name)            
+                ext=('.png', '.jpg', '.jpeg', '.bmp','tif', 'tiff', '.PNG', '.JPG', '.JPEG', '.BMP', '.TIF', '.TIFF')
+                Files = [i for i in Files if i.endswith(tuple(ext))]
+    
+                
+                if not Files: #no items in the folder, print a critiall error message 
+                    QtWidgets.QMessageBox.critical(self, 'No Valid Files', 
+                                'Selected folder does not contain valid files.\nPlease select another folder.')
+                else:  #there are files
+                    
+                    #find the average background from all the images in the folder
+                    temp = cv2.imread(os.path.join(name,Files[0]),0)
+                    h,w = temp.shape
+                    
+                    avr_background = np.zeros((h,w),dtype=np.float)
+                    
+                    for index,file in enumerate(Files):
+                        data = cv2.imread(os.path.join(name,file),0)
+                        avr_background = avr_background + data
+                    
+                        
+                    avr_background = avr_background/len(Files)
+                    avr_background = avr_background.astype(np.uint8)
+                    
+                    self._threshold = avr_background
+                    self.ThresholdAction.setEnabled(False)
+                    
+                    img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
+                    self.displayImage.setPhoto(img_show)
 
     def threhold_function(self):
         #stop playback if active
@@ -1080,6 +1188,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self._current_Image is not None:
             
             if self._threshold is None:
+                #there is not threshold, suggest a threshold by finding the most commmon intensity in the image
                 temp = self._current_Image.copy()
                 temp = cv2.cvtColor(temp, cv2.COLOR_BGR2GRAY)
                 hist = cv2.calcHist([temp],[0],None,[256],[0,256]) 
@@ -1093,6 +1202,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 if self.th.Canceled is False:
                     #update threshold 
                     self._threshold = self.th.threshold 
+                    #remove the option to load a background image
+                    self.BackgroundAction.setEnabled(False)
                 
             else:
                 self.th = ThresholdWindow(self._threshold)
@@ -1101,6 +1212,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 if self.th.Canceled is False:
                     #update threshold 
                     self._threshold = self.th.threshold 
+                    #remove the option to load a background image
+                    self.BackgroundAction.setEnabled(False)
                     
                     
             img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
@@ -1115,6 +1228,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.displayImage.setPhoto(img_show)            
     
     def reset_threshold_function(self):
+        
+        self.BackgroundAction.setEnabled(True)
+        self.ThresholdAction.setEnabled(True)
         
         self._threshold = None
         img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
