@@ -1640,14 +1640,7 @@ class MainWindow(QtWidgets.QMainWindow):
 #            self._framelabel.setText('[<span style ="background-color: green;"> \u2714 </span>|<span style ="background-color: green;"> \u2714 </span>] Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
 
        
-    def ManualEstimation_end(self):
-        #re-establish the ability to play the movie or change to another frame
-        self.PlayAction.setEnabled(True)
-        self.StopAction.setEnabled(True)
-        self.GotoAction.setEnabled(True)
-        self.SpeedAction.setEnabled(True)
-        self._slider.setEnabled(True)
-        
+    def ManualEstimation_end(self):        
         self._ManualEstimation = False #end manual estimation
 
         right = np.zeros((len(self._FileList),1))
@@ -1655,7 +1648,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._hasAngle = [None]*len(self._FileList)
         for m in range(0,len(self._FileList)):
             if (self._hasAngleTempRight[0][m] is True) and (self._hasAngleTempRight[1][m] is True):
-                print(self._FaceCenter)
+                #print(self._FaceCenter)
                 x1 = self._FaceCenter[0] - self._temp_storage_right[0][m][0]
                 y1 = self._FaceCenter[1] - self._temp_storage_right[0][m][1]
 
@@ -1690,14 +1683,25 @@ class MainWindow(QtWidgets.QMainWindow):
 #                    angle_est = 180+angle_est
                                 
                 left[m] = angle_est
-                self._hasAngle[m] = np.array([m,right[m],left[m]])
                 
+            self._hasAngle[m] = np.array([m,right[m],left[m]])
                 
+        
+
         time_vector = np.arange(0,len(right))
         self._results = np.c_[right, left]
         self._results = np.c_[time_vector, self._results]
+
         
-        print(len(self._results))
+        
+        #re-establish the ability to play the movie or change to another frame
+        self.PlayAction.setEnabled(True)
+        self.StopAction.setEnabled(True)
+        self.GotoAction.setEnabled(True)
+        self.SpeedAction.setEnabled(True)
+        self._slider.setEnabled(True)
+        
+        #print(len(self._results))
     
     def Screenshot_function(self):
         #save the current view 

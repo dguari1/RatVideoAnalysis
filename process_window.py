@@ -535,7 +535,7 @@ class ProcessWindow(QDialog):
         
         #this is where all the work will be done, this new window receives all the 
         #information from the main window and this form 
-        
+
         runme = AnalysisWindow(self._List, self._folder, self._RightROI, self._LeftROI, self._FaceCenter, self._threshold, self._angles, parallel, saveInfo, resultsInfo)
         runme.exec_()
         

@@ -82,7 +82,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
     face_edge[face_edge<255] = 0 
     face_edge[face_edge==255] = 1
     #face_edge is 1 for the face and 0 for everything else 
-    image = np.multiply(image,face_edge).astype(np.uint8)
+    
     ######################
 
     #remove the first element from the list
@@ -98,12 +98,16 @@ def rot_estimation(ListofFiles,ExtraInfo):
     if Side == 'Right':
         ROI = RightROI
         image = image[:,0:center[0]] #take right side
+        face_edge = face_edge[:,0:center[0]]
     else:
         ROI = LeftROI
         ROI = [2*center[0],0]-ROI  #mirror the left ROI to the right 
         ROI[:,1]=abs(ROI[:,1])  #correct the minus sign in the y column
         image = cv2.flip(image,1) #mirror it
         image = image[:,0:w_orig-center[0]]  #take left side
+        
+        face_edge = cv2.flip(face_edge,1)
+        face_edge = face_edge[:,0:w_orig-center[0]]
 
     #print(Side)
     
@@ -118,15 +122,22 @@ def rot_estimation(ListofFiles,ExtraInfo):
         lims_y[0]=0
     if lims_y[1]>h_orig:
         lims_y[1]=h_orig    
-        
     #print(lims_x,lims_y)
+    if isinstance(threshold, int):  #remove background by thresholding
+        bc = 'threshold'
+        #apply threshold
+        image[image>threshold] = 255
+        #invert image to improve results
+        image = cv2.bitwise_not(image)
+        #multiply by the image of the face
+        image = np.multiply(image,face_edge).astype(np.uint8)
+        image[image>10] = 255
         
-    #apply threshold
-    image[image>threshold] = 255
-    #invert image to improve results
-    image = cv2.bitwise_not(image)
-
-    
+    else:
+        print(threshold.shape)
+        image = cv2.subtract(threshold, image).astype(np.uint8)
+        image[image<10]=0
+        image = np.multiply(image,face_edge).astype(np.uint8)
     
     #create the mask that will cover only the whiskers in left and right sides of the face
     mask = np.zeros(image.shape, np.uint8)    
@@ -147,7 +158,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
             #load a new image in gray scale
             image = cv2.imread(os.path.join(foldername,file),0) 
             ############
-            image = np.multiply(image,face_edge).astype(np.uint8)
+            #image = np.multiply(image,face_edge).astype(np.uint8)
             #############
             if rotation_angle is not None: #rotate      
                 image = cv2.warpAffine(image, M_overall, (w_orig, h_orig))
@@ -158,11 +169,17 @@ def rot_estimation(ListofFiles,ExtraInfo):
                 image = cv2.flip(image,1) #mirror it
                 image = image[:,0:w_orig-center[0]]  #take left side
                 
-
-            #apply threshold
-            image[image>threshold] = 255
-            #invert image to improve results
-            image = cv2.bitwise_not(image)
+            if bc == 'threshold':  #remove background by thresholding 
+                #apply threshold
+                image[image>threshold] = 255
+                #invert image to improve results
+                image = cv2.bitwise_not(image)
+                image = np.multiply(image,face_edge).astype(np.uint8)
+                image[image>10] = 255
+            else:
+                image = cv2.subtract(threshold, image).astype(np.uint8)
+                image[image<10]=0
+                image = np.multiply(image,face_edge).astype(np.uint8)
             
             #start the process ...
             
@@ -385,7 +402,7 @@ def initial_conditions(ListofFiles,foldername, FaceCenter, threshold):
     
     #now we have an image on 255 (white) and 0 (black) with the face countour, all small details where removed 
     #apply a LARGE Gaussian filter to "smooth" the transition between face/no-face
-    im = cv2.GaussianBlur(im,(13,13),0)
+    im = cv2.GaussianBlur(im,(11,11),0)
    
     #apply canny filter to detect edges
     edges = cv2.Canny(im,50,100) 
@@ -536,12 +553,15 @@ class FramesAnalysis(QObject):
         self._parallel = parallel
         self._resultsInfo = resultsInfo
         self._Pool = pool
+        
+
 
     @pyqtSlot()
     def ProcessFrames(self):
         st_time = time.time()  
         Files = self._ListofFiles   
         
+
         #compute initial conditions on left and right sides
         init_cond = initial_conditions(Files, self._foldername, self._FaceCenter, self._threshold)
 
@@ -600,6 +620,7 @@ class FramesAnalysis(QObject):
 
             if self._resultsInfo._AnalizeResults == 'Both': #analize both sides of the face
             
+                
                 it_right = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
                                 [self._threshold], [self._angles], ['Right'], [rotation_angle])),FilesforProcessing)
@@ -953,7 +974,8 @@ class AnalysisWindow(QDialog):
         
         
         #if requested, then save data in a csv file
-        time_vector = np.linspace(self._ResultsInfo._InitFrame-1, self._ResultsInfo._EndFrame-1, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
+        #3/11/2018 -> changed self._ResultsInfo._InitFrame-1 to self._ResultsInfo._InitFrame, i don't know if that will work....
+        time_vector = np.linspace(self._ResultsInfo._InitFrame, self._ResultsInfo._EndFrame-1, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
         self._results = np.c_[time_vector*(1/Fs), self._results+self._init_cond]
     
     
