@@ -14,6 +14,8 @@ from scipy import signal
 from sklearn.decomposition import PCA
 
 
+import matplotlib.pyplot as plt
+
 
 from multiprocessing import Pool
 from functools import partial
@@ -52,6 +54,11 @@ def rot_estimation(ListofFiles,ExtraInfo):
     RightROI = RightROI[0]
     LeftROI = LeftROI[0]
     threshold = threshold[0]
+    #decide weather threshold is a number or an image
+    bc = None
+    if isinstance(threshold, int): #threshold is a number
+        bc = 'threshold'
+    
     rotation_angle = rotation_angle[0]
     Side = Side[0]
     angles = angles[0]
@@ -99,6 +106,10 @@ def rot_estimation(ListofFiles,ExtraInfo):
         ROI = RightROI
         image = image[:,0:center[0]] #take right side
         face_edge = face_edge[:,0:center[0]]
+        if bc:
+            pass
+        else:
+            threshold = threshold[:,0:center[0]]
     else:
         ROI = LeftROI
         ROI = [2*center[0],0]-ROI  #mirror the left ROI to the right 
@@ -108,6 +119,12 @@ def rot_estimation(ListofFiles,ExtraInfo):
         
         face_edge = cv2.flip(face_edge,1)
         face_edge = face_edge[:,0:w_orig-center[0]]
+        if bc:
+            pass
+        else:
+            threshold = cv2.flip(threshold,1)
+            threshold = threshold[:,0:w_orig-center[0]]
+        
 
     #print(Side)
     
@@ -123,21 +140,20 @@ def rot_estimation(ListofFiles,ExtraInfo):
     if lims_y[1]>h_orig:
         lims_y[1]=h_orig    
     #print(lims_x,lims_y)
-    if isinstance(threshold, int):  #remove background by thresholding
-        bc = 'threshold'
+    if bc:  #remove background by thresholding
         #apply threshold
         image[image>threshold] = 255
         #invert image to improve results
         image = cv2.bitwise_not(image)
         #multiply by the image of the face
-        image = np.multiply(image,face_edge).astype(np.uint8)
+        image = np.multiply(image,face_edge)#.astype(np.uint8)
         image[image>10] = 255
         
     else:
-        print(threshold.shape)
-        image = cv2.subtract(threshold, image).astype(np.uint8)
+        image = cv2.subtract(threshold, image)#.astype(np.uint8)
         image[image<10]=0
-        image = np.multiply(image,face_edge).astype(np.uint8)
+        image = np.multiply(image,face_edge)#.astype(np.uint8)
+        image[image>0]=255
     
     #create the mask that will cover only the whiskers in left and right sides of the face
     mask = np.zeros(image.shape, np.uint8)    
@@ -153,8 +169,8 @@ def rot_estimation(ListofFiles,ExtraInfo):
         #keep the previous frame in memory to compare with the next frame
         old_image = image.copy()
         #old_left = left.copy()
-        
         if file is not None:
+
             #load a new image in gray scale
             image = cv2.imread(os.path.join(foldername,file),0) 
             ############
@@ -168,18 +184,19 @@ def rot_estimation(ListofFiles,ExtraInfo):
             else:
                 image = cv2.flip(image,1) #mirror it
                 image = image[:,0:w_orig-center[0]]  #take left side
-                
+              
             if bc == 'threshold':  #remove background by thresholding 
                 #apply threshold
                 image[image>threshold] = 255
                 #invert image to improve results
                 image = cv2.bitwise_not(image)
-                image = np.multiply(image,face_edge).astype(np.uint8)
+                image = np.multiply(image,face_edge)#.astype(np.uint8)
                 image[image>10] = 255
             else:
-                image = cv2.subtract(threshold, image).astype(np.uint8)
+                image = cv2.subtract(threshold, image)#.astype(np.uint8)
                 image[image<10]=0
-                image = np.multiply(image,face_edge).astype(np.uint8)
+                image = np.multiply(image,face_edge)#.astype(np.uint8)
+                image[image>0]=255
             
             #start the process ...
             
@@ -308,7 +325,8 @@ def rot_estimation(ListofFiles,ExtraInfo):
                     #store the results 
                     results = np.append(results, select_val) 
                     #print('thus')
-                    
+
+        
     #return the angles 
     return results    
 
@@ -386,152 +404,300 @@ def test_line_like_ness(frame, pos, m_size=None):
 
 
 def initial_conditions(ListofFiles,foldername, FaceCenter, threshold):
+        
+    if isinstance(threshold, int):  #remove background by thresholding
+        #reaf first image of the list to estimate initial conditions
+        image = cv2.imread(os.path.join(foldername,ListofFiles[0]),0)  #last 0 means gray scale
+        #find its shape
+        h,w = image.shape
+        
+        #dilate to remove whiskers and other small objects
+        kernel = np.ones((11,11), np.uint8)
+        im = cv2.dilate(image,kernel,iterations=1)
+        #apply threshold so that only the face is selected. I used the mean brightness value
+        th,_,_,_ = cv2.mean(im)
+        im[im>np.ceil(th)] = 255
+        im[im<255] = 0 
+        
+        #now we have an image on 255 (white) and 0 (black) with the face countour, all small details where removed 
+        #apply a LARGE Gaussian filter to "smooth" the transition between face/no-face
+        im = cv2.GaussianBlur(im,(11,11),0)
+       
+        #apply canny filter to detect edges
+        edges = cv2.Canny(im,50,100) 
+        
+        
+        #find how far is the selected Face Center from the snout
+        where_at_center = np.where(edges[FaceCenter[1],:]==255)
+        dist_face_center = FaceCenter[0] - where_at_center[0][0]
+        
+        #create a mask with a circle centered at the FaceCenter and radius 1.25 the distance between FaceCenter and the snout
+        mask = np.zeros((h,w), dtype = np.uint8)
+        mask = cv2.circle(mask, tuple(FaceCenter), int(dist_face_center*1.5), [255,255,255])
+        
+        #find where the mask and the edges coincide 
+        coinc = np.where(np.multiply(edges,mask)!= 0)
+        if coinc[1][0]<FaceCenter[0]:
+            #in the right
+            st_right = [coinc[1][0], coinc[0][0]]
+            #and left
+            st_left = [coinc[1][1], coinc[0][1]]
+        else:
+            #in the right
+            st_right = [coinc[1][1], coinc[0][1]]
+            #and left
+            st_left = [coinc[1][0], coinc[0][0]] 
+        
+        #take the right side of the image
+        right = image.copy()
+        right = right[:,0:FaceCenter[0]]
+        right_mask = mask.copy()
+        right_mask = right_mask[:,0:FaceCenter[0]]
+        #find the pixels where the circle was drawn 
+        mask_position = np.where(right_mask == 255) #pixels in the circle
+        
+        #find pixels in the semi-circle that do no coincide with the face and are at least 10 pixels (in y) apart from the face 
+        cross_ = np.where(mask_position[0]>st_right[1]+15) 
+        y_position = mask_position[0][cross_[0][0]:]
+        x_position = mask_position[1][cross_[0][0]:]
+        intensity = np.zeros([len(y_position)])
+        #find the pixel intensity around the semi-circle (this will not include the face)
+        for m in range(0,len(y_position)):
+            intensity[m] = right[y_position[m],x_position[m]]   
+            
+        whisker_shadows_right = np.where(intensity < threshold) #determine what are whiskers based on threshold selected by the user
+        
+        #test the possible whisker to see if there actually whiskers. We only need the most caudal and most rostal whiskers 
+        k=0
+        while True:
+            pp = test_line_like_ness(image,[y_position[whisker_shadows_right[0][k]],x_position[whisker_shadows_right[0][k]]] , m_size=7) 
+            if pp>0.985:
+                break
+            k+=1
+            
+        cauldal_right = [x_position[whisker_shadows_right[0][k]], y_position[whisker_shadows_right[0][k]]]
     
-    #reaf first image of the list to estimate initial conditions
-    image = cv2.imread(os.path.join(foldername,ListofFiles[0]),0)  #last 0 means gray scale
-    #find its shape
-    h,w = image.shape
+        k = len(whisker_shadows_right[0])-1
+        while True:
+            pp = test_line_like_ness(image,[y_position[whisker_shadows_right[0][k]],x_position[whisker_shadows_right[0][k]]] , m_size=7) 
+            if pp>0.985:
+                break
+            k-=1    
+            
+        rostal_right = [x_position[whisker_shadows_right[0][k]], y_position[whisker_shadows_right[0][k]]]
+        
+        #find the angle between the most rostal and most caudal whiskers
+        x1 = FaceCenter[0]-cauldal_right[0]
+        y1 = FaceCenter[1]-cauldal_right[1]
+        
+        x2 = FaceCenter[0]-rostal_right[0]
+        y2 = FaceCenter[1]-rostal_right[1]
+        rad = np.sqrt(x1**2 + y1**2)
+        p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+        q = ((y1+y2)/(x1+x2))*p
+        
+        angle_right = np.arctan(q/p)*180/np.pi
+        
+        
+        #take the left side of the image
+        left = image.copy()
+        left = left[:,FaceCenter[0]:]
+        left_mask = mask.copy()
+        left_mask = left_mask[:,FaceCenter[0]:]
+        
+        mask_position= np.where(left_mask ==255)
+        cross_ = np.where(mask_position[0]>st_left[1]+15)
+        y_position = mask_position[0][cross_[0][0]:]
+        x_position = mask_position[1][cross_[0][0]:]
+        intensity = np.zeros([len(y_position)])
+        for m in range(0,len(y_position)):
+            intensity[m] = left[y_position[m],x_position[m]]
+        
     
-    #dilate to remove whiskers and other small objects
-    kernel = np.ones((11,11), np.uint8)
-    im = cv2.dilate(image,kernel,iterations=1)
-    #apply threshold so that only the face is selected. I used the mean brightness value
-    th,_,_,_ = cv2.mean(im)
-    im[im>np.ceil(th)] = 255
-    im[im<255] = 0 
+        whisker_shadows_left = np.where(intensity < threshold)
+        #test the possible whisker to see if there actually whiskers. We only need the most caudal and most rostal whiskers 
+        k=0
+        while True:
+            pp = test_line_like_ness(image,[y_position[whisker_shadows_left[0][k]],x_position[whisker_shadows_left[0][k]] + FaceCenter[0]] , m_size=7) 
+            if pp>0.985:
+                break
+            k+=1
     
-    #now we have an image on 255 (white) and 0 (black) with the face countour, all small details where removed 
-    #apply a LARGE Gaussian filter to "smooth" the transition between face/no-face
-    im = cv2.GaussianBlur(im,(11,11),0)
+        cauldal_left = [x_position[whisker_shadows_left[0][k]]+FaceCenter[0], y_position[whisker_shadows_left[0][k]]]
+    
+        k = len(whisker_shadows_left[0])-1
+        while True:
+            pp = test_line_like_ness(image,[y_position[whisker_shadows_left[0][k]],x_position[whisker_shadows_left[0][k]] + FaceCenter[0]] , m_size=7) 
+            if pp>0.985:
+                break
+            k-=1    
+            
+        rostal_left = [x_position[whisker_shadows_left[0][k]]+FaceCenter[0], y_position[whisker_shadows_left[0][k]]]
+        
+        
+        #find the angle between the most rostal and most caudal whiskers
+        x1 = cauldal_left[0]-FaceCenter[0]
+        y1 = FaceCenter[1]-cauldal_left[1]
+        
+        x2 = rostal_left[0]-FaceCenter[0]
+        y2 = FaceCenter[1]-rostal_left[1]
+        rad = np.sqrt(x1**2 + y1**2)
+        p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+        q = ((y1+y2)/(x1+x2))*p
+        
+        angle_left = np.arctan(q/p)*180/np.pi
+        
+    else: #remove background by subtraction 
+
+        #read first image of the list to estimate initial conditions
+        image = cv2.imread(os.path.join(foldername,ListofFiles[0]),0)  #last 0 means gray scale
+        #find its shape
+        h,w = image.shape
+        
+        #dilate to remove whiskers and other small objects
+        kernel = np.ones((11,11), np.uint8)
+        face = cv2.dilate(image,kernel,iterations=1)
+        
+        
+        #apply threshold so that only the face is selected. I used the mean brightness value
+        th,_,_,_ = cv2.mean(face)
+        face[face>np.ceil(th)] = 255
+        face[face<255] = 0 
+        
+        
+        #apply canny filter to detect edges
+        edges = cv2.Canny(face,50,100) 
+        #cv2.imshow("",edges)
+        
+        #face[face==255] =1
+        
+        #removing background 
+        
+        im = cv2.subtract(threshold,image).astype(np.uint8)
+        im[im<10]=0
+        im = np.multiply(im,face).astype(np.uint8)
+        im[im>0]=255
+ 
+        
+        #find how far is the selected Face Center from the snout
+        where_at_center = np.where(edges[FaceCenter[1],:]==255)
+        dist_face_center = FaceCenter[0] - where_at_center[0][0]
+        
+        #create a mask with a circle centered at the FaceCenter and radius 1.25 the distance between FaceCenter and the snout
+        mask = np.zeros((h,w), dtype = np.uint8)
+        mask = cv2.circle(mask, tuple(FaceCenter), int(dist_face_center*1.5), [255,255,255])
+        
+        #find where the mask and the edges coincide 
+        coinc = np.where(np.multiply(edges,mask)!= 0)
+        if coinc[1][0]<FaceCenter[0]:
+            #in the right
+            st_right = [coinc[1][0], coinc[0][0]]
+            #and left
+            st_left = [coinc[1][1], coinc[0][1]]
+        else:
+            #in the right
+            st_right = [coinc[1][1], coinc[0][1]]
+            #and left
+            st_left = [coinc[1][0], coinc[0][0]] 
+        
+        #take the right side of the image
+        right = im.copy()
+        right = right[:,0:FaceCenter[0]]
+        right_mask = mask.copy()
+        right_mask = right_mask[:,0:FaceCenter[0]]
+        #find the pixels where the circle was drawn 
+        mask_position = np.where(right_mask == 255) #pixels in the circle
    
-    #apply canny filter to detect edges
-    edges = cv2.Canny(im,50,100) 
-    
-    
-    #find how far is the selected Face Center from the snout
-    where_at_center = np.where(edges[FaceCenter[1],:]==255)
-    dist_face_center = FaceCenter[0] - where_at_center[0][0]
-    
-    #create a mask with a circle centered at the FaceCenter and radius 1.25 the distance between FaceCenter and the snout
-    mask = np.zeros((h,w), dtype = np.uint8)
-    mask = cv2.circle(mask, tuple(FaceCenter), int(dist_face_center*1.5), [255,255,255])
-    
-    #find where the mask and the edges coincide 
-    coinc = np.where(np.multiply(edges,mask)!= 0)
-    #in the right
-    st_right = [coinc[1][0], coinc[0][0]]
-    #and left
-    st_left = [coinc[1][1], coinc[0][1]]
-    
-    #take the right side of the image
-    right = image.copy()
-    right = right[:,0:FaceCenter[0]]
-    right_mask = mask.copy()
-    right_mask = right_mask[:,0:FaceCenter[0]]
-    #find the pixels where the circle was drawn 
-    mask_position = np.where(right_mask == 255) #pixels in the circle
-    
-    #find pixels in the semi-circle that do no coincide with the face and are at least 10 pixels (in y) apart from the face 
-    cross_ = np.where(mask_position[0]>st_right[1]+15) 
-    y_position = mask_position[0][cross_[0][0]:]
-    x_position = mask_position[1][cross_[0][0]:]
-    intensity = np.zeros([len(y_position)])
-    #find the pixel intensity around the semi-circle (this will not include the face)
-    for m in range(0,len(y_position)):
-        intensity[m] = right[y_position[m],x_position[m]]   
+        #find pixels in the semi-circle that do no coincide with the face and are at least 10 pixels (in y) apart from the face 
+        cross_ = np.where(mask_position[0]>st_right[1]+15) 
+        y_position = mask_position[0][cross_[0][0]:]
+        x_position = mask_position[1][cross_[0][0]:]
+        intensity = np.zeros([len(y_position)])
+        #find the pixel intensity around the semi-circle (this will not include the face)
+        for m in range(0,len(y_position)):
+            intensity[m] = right[y_position[m],x_position[m]]   
+            
+        whisker_shadows_right = np.where(intensity > 0) #determine what are whiskers based on threshold selected by the user
+ 
+        #test the possible whisker to see if there actually whiskers. We only need the most caudal and most rostal whiskers 
+        k=0
+        while True:
+            pp = test_line_like_ness(image,[y_position[whisker_shadows_right[0][k]],x_position[whisker_shadows_right[0][k]]] , m_size=7) 
+            if pp>0.985:
+                break
+            k+=1
+            
+        cauldal_right = [x_position[whisker_shadows_right[0][k]], y_position[whisker_shadows_right[0][k]]]
         
-    whisker_shadows_right = np.where(intensity < threshold) #determine what are whiskers based on threshold selected by the user
-    
-    #test the possible whisker to see if there actually whiskers. We only need the most caudal and most rostal whiskers 
-    k=0
-    while True:
-        pp = test_line_like_ness(image,[y_position[whisker_shadows_right[0][k]],x_position[whisker_shadows_right[0][k]]] , m_size=7) 
-        if pp>0.985:
-            break
-        k+=1
+        k = len(whisker_shadows_right[0])-1
+        while True:
+            pp = test_line_like_ness(image,[y_position[whisker_shadows_right[0][k]],x_position[whisker_shadows_right[0][k]]] , m_size=7) 
+            if pp>0.985:
+                break
+            k-=1    
+            
+        rostal_right = [x_position[whisker_shadows_right[0][k]], y_position[whisker_shadows_right[0][k]]]
         
-    cauldal_right = [x_position[whisker_shadows_right[0][k]], y_position[whisker_shadows_right[0][k]]]
-
-    k = len(whisker_shadows_right[0])-1
-    while True:
-        pp = test_line_like_ness(image,[y_position[whisker_shadows_right[0][k]],x_position[whisker_shadows_right[0][k]]] , m_size=7) 
-        if pp>0.985:
-            break
-        k-=1    
+        #find the angle between the most rostal and most caudal whiskers
+        x1 = FaceCenter[0]-cauldal_right[0]
+        y1 = FaceCenter[1]-cauldal_right[1]
         
-    rostal_right = [x_position[whisker_shadows_right[0][k]], y_position[whisker_shadows_right[0][k]]]
-    
-    #find the angle between the most rostal and most caudal whiskers
-    x1 = FaceCenter[0]-cauldal_right[0]
-    y1 = FaceCenter[1]-cauldal_right[1]
-    
-    x2 = FaceCenter[0]-rostal_right[0]
-    y2 = FaceCenter[1]-rostal_right[1]
-    rad = np.sqrt(x1**2 + y1**2)
-    p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
-    q = ((y1+y2)/(x1+x2))*p
-    
-    angle_right = np.arctan(q/p)*180/np.pi
-    
-#    l_bar = FaceCenter[1]*0.75
-#    dy_right= l_bar*np.tan(angle_right)
-#    
-#    print(FaceCenter,[p,q],FaceCenter[0]-l_bar, FaceCenter[1]-dy_right)
-    
-    
-    #take the left side of the image
-    left = image.copy()
-    left = left[:,FaceCenter[0]:]
-    left_mask = mask.copy()
-    left_mask = left_mask[:,FaceCenter[0]:]
-    
-    mask_position= np.where(left_mask ==255)
-    cross_ = np.where(mask_position[0]>st_left[1]+15)
-    y_position = mask_position[0][cross_[0][0]:]
-    x_position = mask_position[1][cross_[0][0]:]
-    intensity = np.zeros([len(y_position)])
-    for m in range(0,len(y_position)):
-        intensity[m] = left[y_position[m],x_position[m]]
-    
-
-    whisker_shadows_left = np.where(intensity < threshold)
-    #test the possible whisker to see if there actually whiskers. We only need the most caudal and most rostal whiskers 
-    k=0
-    while True:
-        pp = test_line_like_ness(image,[y_position[whisker_shadows_left[0][k]],x_position[whisker_shadows_left[0][k]] + FaceCenter[0]] , m_size=7) 
-        if pp>0.985:
-            break
-        k+=1
-
-    cauldal_left = [x_position[whisker_shadows_left[0][k]]+FaceCenter[0], y_position[whisker_shadows_left[0][k]]]
-
-    k = len(whisker_shadows_left[0])-1
-    while True:
-        pp = test_line_like_ness(image,[y_position[whisker_shadows_left[0][k]],x_position[whisker_shadows_left[0][k]] + FaceCenter[0]] , m_size=7) 
-        if pp>0.985:
-            break
-        k-=1    
+        x2 = FaceCenter[0]-rostal_right[0]
+        y2 = FaceCenter[1]-rostal_right[1]
+        rad = np.sqrt(x1**2 + y1**2)
+        p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+        q = ((y1+y2)/(x1+x2))*p
         
-    rostal_left = [x_position[whisker_shadows_left[0][k]]+FaceCenter[0], y_position[whisker_shadows_left[0][k]]]
-    
-    
-    #find the angle between the most rostal and most caudal whiskers
-    x1 = cauldal_left[0]-FaceCenter[0]
-    y1 = FaceCenter[1]-cauldal_left[1]
-    
-    x2 = rostal_left[0]-FaceCenter[0]
-    y2 = FaceCenter[1]-rostal_left[1]
-    rad = np.sqrt(x1**2 + y1**2)
-    p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
-    q = ((y1+y2)/(x1+x2))*p
-    
-    angle_left = np.arctan(q/p)*180/np.pi
-    
-#    l_bar = FaceCenter[1]*0.75
-#    dy_left= l_bar*np.tan(angle_left)
-#    
-#    print(FaceCenter,[p,q],FaceCenter[0]+l_bar, FaceCenter[1]-dy_left)
-    
+        angle_right = np.arctan(q/p)*180/np.pi
+
+        #take the left side of the image
+        left = image.copy()
+        left = left[:,FaceCenter[0]:]
+        left_mask = mask.copy()
+        left_mask = left_mask[:,FaceCenter[0]:]
+
+        mask_position= np.where(left_mask ==255)
+        cross_ = np.where(mask_position[0]>st_left[1]+15)
+        y_position = mask_position[0][cross_[0][0]:]
+        x_position = mask_position[1][cross_[0][0]:]
+        intensity = np.zeros([len(y_position)])
+        for m in range(0,len(y_position)):
+            intensity[m] = left[y_position[m],x_position[m]]
+
+        
+        whisker_shadows_left = np.where(intensity > 0)
+        #test the possible whisker to see if there actually whiskers. We only need the most caudal and most rostal whiskers 
+        k=0
+        while True:
+            pp = test_line_like_ness(image,[y_position[whisker_shadows_left[0][k]],x_position[whisker_shadows_left[0][k]] + FaceCenter[0]] , m_size=7) 
+            if pp>0.985:
+                break
+            k+=1
+
+        cauldal_left = [x_position[whisker_shadows_left[0][k]]+FaceCenter[0], y_position[whisker_shadows_left[0][k]]]
+        
+        k = len(whisker_shadows_left[0])-1
+        while True:
+            pp = test_line_like_ness(image,[y_position[whisker_shadows_left[0][k]],x_position[whisker_shadows_left[0][k]] + FaceCenter[0]] , m_size=7) 
+            if pp>0.985:
+                break
+            k-=1    
+            
+        rostal_left = [x_position[whisker_shadows_left[0][k]]+FaceCenter[0], y_position[whisker_shadows_left[0][k]]]
+        
+
+        #find the angle between the most rostal and most caudal whiskers
+        x1 = cauldal_left[0]-FaceCenter[0]
+        y1 = FaceCenter[1]-cauldal_left[1]
+        
+        x2 = rostal_left[0]-FaceCenter[0]
+        y2 = FaceCenter[1]-rostal_left[1]
+        rad = np.sqrt(x1**2 + y1**2)
+        p = rad*(x1+x2)/(np.sqrt((x1+x2)**2 + (y1+y2)**2))
+        q = ((y1+y2)/(x1+x2))*p
+        
+        angle_left = np.arctan(q/p)*180/np.pi
+
     return np.array([angle_right, angle_left])
 
 
@@ -561,7 +727,6 @@ class FramesAnalysis(QObject):
         st_time = time.time()  
         Files = self._ListofFiles   
         
-
         #compute initial conditions on left and right sides
         init_cond = initial_conditions(Files, self._foldername, self._FaceCenter, self._threshold)
 
@@ -620,7 +785,7 @@ class FramesAnalysis(QObject):
 
             if self._resultsInfo._AnalizeResults == 'Both': #analize both sides of the face
             
-                
+
                 it_right = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
                                 [self._threshold], [self._angles], ['Right'], [rotation_angle])),FilesforProcessing)
@@ -628,28 +793,30 @@ class FramesAnalysis(QObject):
                 it_left = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
                                 [self._threshold], [self._angles], ['Left'], [rotation_angle])),FilesforProcessing)
+                
+                
                 res_right= []
                 res_left= []
                 for x in it_right:
                     res_right.append(x)
                 for y in it_left:
                     res_left.append(y)
-                               
+                duration = time.time()-st_time             
                 pool.terminate()
                 pool.join()   
-                duration = time.time()-st_time  
                 
+
                 results_right = np.zeros((1,1),dtype = np.float64)
                 for k in range(0,len(res_right)):
                     temp = res_right[k]
                     results_right = np.append(results_right,temp[1:]) 
-                  
+ 
                       
                 results_left = np.zeros((1,1),dtype = np.float64)
                 for k in range(0,len(res_left)):
                     temp = res_left[k]
                     results_left = np.append(results_left,temp[1:]) 
-                      
+  
                 #put everythin togehter 
                 results= np.c_[results_right, results_left]  
                 
@@ -662,10 +829,10 @@ class FramesAnalysis(QObject):
                 res_right= []
                 for x in it_right:
                     res_right.append(x)
-                               
+                duration = time.time()-st_time                
                 pool.terminate()
                 pool.join()   
-                duration = time.time()-st_time  
+                 
                 
                 results_right = np.zeros((1,1),dtype = np.float64)
                 for k in range(0,len(res_right)):
@@ -684,10 +851,10 @@ class FramesAnalysis(QObject):
                 res_left= []
                 for y in it_left:
                     res_left.append(y)
-                               
+                duration = time.time()-st_time               
                 pool.terminate()
                 pool.join()   
-                duration = time.time()-st_time  
+                  
                                  
                 results_left = np.zeros((1,1),dtype = np.float64)
                 for k in range(0,len(res_left)):
@@ -940,9 +1107,13 @@ class AnalysisWindow(QDialog):
         
         low_pass_frequency = Niq_Fs/2 - Niq_Fs*0.1 #low-pass filter at half the niquist frequency minus 10% to remove high-frequency noise 
         
-        high_pass_frequency = Niq_Fs*0.002  #high-pass filter at 0.2% of the niquist frequency to remove tren added by the numerical integration
+        high_pass_frequency = Niq_Fs*0.004  #high-pass filter at 0.3% of the niquist frequency to remove tren added by the numerical integration
         
-        
+#        fig = plt.figure()
+#        ax1 = fig.add_subplot(111)
+#        ax1.plot(self._results[:,0],linewidth=2)  
+#        ax1.set_ylim(-3,3)
+#        ax1.set_xlim(0,1000)
         #filters
         b, a = signal.butter(2, low_pass_frequency/Niq_Fs, btype = 'low')
         c, d = signal.butter(2, high_pass_frequency/Niq_Fs, btype = 'high')

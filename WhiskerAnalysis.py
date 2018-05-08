@@ -29,7 +29,7 @@ from video_window import VideoWindow
 
 from rotation_window import RotationAngleWindow
 from Test_window import TestWindow
-
+from center_detection import find_center_whiskerpad
 
 #### this piece is used to sort the files by name 
 import re
@@ -95,8 +95,10 @@ def get_pixmap(image, threshold=None, rotation_angle = None):
                 #convert to gray
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
                 #subtract background from image
-                image = cv2.subtract(threshold,image).astype(np.uint8)
-                image[image<12] = 0
+                image = cv2.subtract(threshold,image)#.astype(np.uint8)
+                image[image<8] = 0
+                image = image + 45
+                image[image<46] = 0
                 
                 #image = (image/np.max(image))*255
                 #image = image.astype(np.uint8)
@@ -108,7 +110,9 @@ def get_pixmap(image, threshold=None, rotation_angle = None):
                 img_show = QtGui.QPixmap.fromImage(img_Qt)
             elif len(image.shape) == 2: #gray image
                 image = cv2.subtract(threshold,image).astype(np.uint8)
-                image[image<12] = 0
+                image[image<8] = 0
+                image = image + 45
+                image[image<46] = 0
                 
                 #image = (image/np.max(image))*255
                 #image = image.astype(np.uint8)
@@ -303,7 +307,7 @@ class MainWindow(QtWidgets.QMainWindow):
         RotationAction.triggered.connect(self.rotate_function)
         
         ResetRotationAction = RotationdMenu.addAction("Reset Rotation")
-        ResetRotationAction.setShortcut("Ctrl+L")
+        ResetRotationAction.setShortcut("Ctrl+U")
         ResetRotationAction.setStatusTip('Reset rotation')
         ResetRotationAction.triggered.connect(self.reset_rotate_function)
         
@@ -491,6 +495,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._current_Image = image
 
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
+                
+                
+                #find face center automatically 
+                face_center,_,_,isFaceCenter = find_center_whiskerpad(self._current_Image)
+                if isFaceCenter is True:
+                    self._FaceCenter = face_center
+                    self.displayImage._FaceCenter = face_center
+                    print(face_center)
 
                 #show the photo
                 self.displayImage.setPhotoFirstTime(img_show)  
@@ -658,6 +670,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     
                 if From_File._FaceCenter is not None:
                     self._FaceCenter = From_File._FaceCenter
+                    #print(self._FaceCenter)
                 if From_File._RightROI is not None:
                     self._RightROI = From_File._RightROI  
                 if From_File._LeftROI is not None:
@@ -667,13 +680,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 if From_File._rotation_angle is not None:
                     self._rotation_angle = From_File._rotation_angle
                 if From_File._hasAngle is not None:
-                    self._hasAngle[0:len(From_File._results)] = From_File._hasAngle 
+                    self._hasAngle[0:len(From_File._hasAngle)] = From_File._hasAngle 
                 if From_File._results is not None:
                     self._results = From_File._results
                 #remove file from memory, it is not needed any more
                 From_File = None
                 
-#                #show the photo
+#               #show the photo
                 self.displayImage.draw_from_txt(self._FaceCenter, self._RightROI, self._LeftROI) 
                 self._count_angle = sum(self._hasAngle[0:self._FrameIndex])
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
@@ -684,8 +697,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     #self._sent_angle = None
                     self.displayImage.setPhoto(img_show, self._sent_angle) 
-                    
 
+                    
+                print(self._FaceCenter)
         return
                     
     def Forward_function(self):
