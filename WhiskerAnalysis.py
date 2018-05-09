@@ -502,11 +502,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 if isFaceCenter is True:
                     self._FaceCenter = face_center
                     self.displayImage._FaceCenter = face_center
-                    print(face_center)
-
+ 
                 #show the photo
                 self.displayImage.setPhotoFirstTime(img_show)  
                 self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                
+                #if face center was not localized then ask the user to do it manually
+                isFaceCenter=False
+                if isFaceCenter is False:
+                    box = QtWidgets.QMessageBox()
+                    box.setIcon(QtWidgets.QMessageBox.Information)
+                    box.setWindowTitle('Face Center')
+                    box.setText('Error while finding Face center. Press Ctlr+C for manual localization')
+                    box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+                    box.exec_()
                 
     def load_video(self):
         if self.timer.isActive(): #verify is the video is running 
@@ -583,11 +592,27 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._current_Image = image
 
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
+                
+                #find face center automatically 
+                face_center,_,_,isFaceCenter = find_center_whiskerpad(self._current_Image)
+                if isFaceCenter is True:
+                    self._FaceCenter = face_center
+                    self.displayImage._FaceCenter = face_center
 
                 #show the photo
                 self.displayImage.setPhotoFirstTime(img_show)   
                 #update status bar with the frame number 
                 self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
+                
+                #if face center was not localized then ask the user to do it manually
+                isFaceCenter=False
+                if isFaceCenter is False:
+                    box = QtWidgets.QMessageBox()
+                    box.setIcon(QtWidgets.QMessageBox.Information)
+                    box.setWindowTitle('Face Center')
+                    box.setText('Error while finding Face center. Press Ctlr+C for manual localization')
+                    box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+                    box.exec_()
     
     def ExportCSV_function(self):
         if self.timer.isActive(): #verify if the video is running 

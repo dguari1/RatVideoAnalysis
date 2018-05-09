@@ -56,8 +56,8 @@ def find_center_whiskerpad(image):
     only_eyes =  cv2.erode(only_eyes,kernel_erode1,iterations=1)
     only_eyes =  cv2.dilate(only_eyes,kernel_dilat2,iterations=1)
     #this image should contain the eyes and other big dark areas in the face. Plot it to verify results 
-    #cv2.namedWindow('Eyes_contour',cv2.WINDOW_NORMAL)
-    #cv2.imshow('Eyes_contour', only_eyes)
+#    cv2.namedWindow('Eyes_contour',cv2.WINDOW_NORMAL)
+#    cv2.imshow('Eyes_contour', only_eyes)
     
     
     #use cv2 to detect the different contours in the binary image, some of these contours should be the eyes (if they are open)
@@ -71,9 +71,9 @@ def find_center_whiskerpad(image):
         if contact_border.size == 0 :
             x,y,w,h = cv2.boundingRect(cnt)
             aspect_ratio = float(w)/h
-    
+
             
-            if aspect_ratio < 0.9: #verify if the bounding box is not squared, if is square then is not an eye 
+            if aspect_ratio < 0.95: #verify if the bounding box is not squared, if is square then is not an eye 
                 selected_contours.append(cnt)
     
     #the remainder contours are not squares and don't touch the borders. Apply a similarity index between 
@@ -81,8 +81,9 @@ def find_center_whiskerpad(image):
     if len(selected_contours) == 2: #if there are only two contours then they are probably the eyes.... let's roll with it 
         Eyes = selected_contours 
         Eyes_Found = True
-    else: #if there are more than two contours then we have to find what countours are eyes (if any)
         
+    else: #if there are more than two contours then we have to find what countours are eyes (if any)
+
         #compute a similarity matrix between contours, this computes the Hu moments of each contour and generates a similarity index between contours
         #Hu moments are invariant for rotation and translation so they should be able to detect two ellipses with different rotations 
         #0 means equal contours, 1 means complete un-equal contours
@@ -91,7 +92,7 @@ def find_center_whiskerpad(image):
             for j,cnt2 in enumerate(selected_contours):
                 ret = cv2.matchShapes(cnt1,cnt2,3,0.0)
                 Contours_Comp[j,k] = ret
-        
+
         #go row by row looking for contours that are similar, I define two similar contours if their similarity is less than 0.1
         for k in range(0,len(Contours_Comp)):            
             values = Contours_Comp[k]
@@ -153,6 +154,7 @@ def find_center_whiskerpad(image):
         
         center_pad = (mid_face[0]+int(round(opp)), mid_face[1]+int(round(adj)))
                 
+    
         return center_pad,snout, mid_face, Eyes_Found 
             
     else: #Eyes not found, return error 

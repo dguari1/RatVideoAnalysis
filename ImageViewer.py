@@ -84,6 +84,12 @@ class ImageViewer(QtWidgets.QGraphicsView):
                 self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]-l_bar, self._FaceCenter[1]-dy_right,1,3)
                 self.draw_line(self._FaceCenter[0],self._FaceCenter[1], self._FaceCenter[0]+l_bar, self._FaceCenter[1]-dy_left,1,3)
 
+            if (result is None) and (self._FaceCenter is not None):
+               rect = QtCore.QRectF(self._photo.pixmap().rect())
+               view_width=rect.width()
+               view_height=rect.height() 
+               self.draw_line(0,self._FaceCenter[1],view_width,self._FaceCenter[1])
+               self.draw_line(self._FaceCenter[0],0,self._FaceCenter[0],view_height)
         else:
             self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
             self._photo.setPixmap(QtGui.QPixmap())
