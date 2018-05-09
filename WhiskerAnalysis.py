@@ -508,7 +508,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
                 
                 #if face center was not localized then ask the user to do it manually
-                isFaceCenter=False
                 if isFaceCenter is False:
                     box = QtWidgets.QMessageBox()
                     box.setIcon(QtWidgets.QMessageBox.Information)
@@ -605,7 +604,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
                 
                 #if face center was not localized then ask the user to do it manually
-                isFaceCenter=False
                 if isFaceCenter is False:
                     box = QtWidgets.QMessageBox()
                     box.setIcon(QtWidgets.QMessageBox.Information)
