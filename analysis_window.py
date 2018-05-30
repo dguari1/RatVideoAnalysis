@@ -20,6 +20,11 @@ import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from functools import partial
 
+
+#this function is useful to debug the parallel-processing component !!!
+#import multiprocessing.util as util
+#util.log_to_stderr(util.SUBDEBUG)
+
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
@@ -36,7 +41,6 @@ Work to do: Create a % bar that indicates the state of things
 """
 
 def rot_estimation(ListofFiles,ExtraInfo):  
-
     scale = 0.5
     
     #function that takes care of computing the angular rotation between frames in ListofFiles
@@ -784,7 +788,7 @@ class FramesAnalysis(QObject):
             pool = self._Pool #Make a local copy Pool(processes=agents)
 
             if self._resultsInfo._AnalizeResults == 'Both': #analize both sides of the face
-            
+                
 
                 it_right = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
@@ -1107,13 +1111,14 @@ class AnalysisWindow(QDialog):
         
         low_pass_frequency = Niq_Fs/2 - Niq_Fs*0.1 #low-pass filter at half the niquist frequency minus 10% to remove high-frequency noise 
         
-        high_pass_frequency = Niq_Fs*0.004  #high-pass filter at 0.3% of the niquist frequency to remove tren added by the numerical integration
+        high_pass_frequency = Niq_Fs*0.004  #high-pass filter at 0.3% of the niquist frequency to remove trend added by the numerical integration
         
-#        fig = plt.figure()
+#        fig = plt.figure('5')
 #        ax1 = fig.add_subplot(111)
 #        ax1.plot(self._results[:,0],linewidth=2)  
-#        ax1.set_ylim(-3,3)
+#        ax1.set_ylim(-5,5)
 #        ax1.set_xlim(0,1000)
+        
         #filters
         b, a = signal.butter(2, low_pass_frequency/Niq_Fs, btype = 'low')
         c, d = signal.butter(2, high_pass_frequency/Niq_Fs, btype = 'high')
@@ -1148,7 +1153,6 @@ class AnalysisWindow(QDialog):
         #3/11/2018 -> changed self._ResultsInfo._InitFrame-1 to self._ResultsInfo._InitFrame, i don't know if that will work....
         time_vector = np.linspace(self._ResultsInfo._InitFrame, self._ResultsInfo._EndFrame-1, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
         self._results = np.c_[time_vector*(1/Fs), self._results+self._init_cond]
-    
     
         #we need to inform to the main program what frames have been processed and what frames haven't 
         #this will simplify presentation of results

@@ -373,10 +373,10 @@ class MainWindow(QtWidgets.QMainWindow):
         ResetResultsAction.setStatusTip('Eliminate estimated angular displacement values from memory')
         ResetResultsAction.triggered.connect(self.reset_function)
         
-        TestParametersAction = ProcessMenu.addAction("Test Parameters")
-        TestParametersAction.setShortcut("Ctrl+O")
-        TestParametersAction.setStatusTip('Test parameters using two frames')
-        TestParametersAction.triggered.connect(self.testParams_function)
+#        TestParametersAction = ProcessMenu.addAction("Test Parameters")
+#        TestParametersAction.setShortcut("Ctrl+O")
+#        TestParametersAction.setStatusTip('Test parameters using two frames')
+#        TestParametersAction.triggered.connect(self.testParams_function)
         
         ManualEstimationAction = ProcessMenu.addAction("Manual estimation")
         ManualEstimationAction.setShortcut("Ctrl+I")
@@ -1351,7 +1351,7 @@ class MainWindow(QtWidgets.QMainWindow):
                             if x < 0:
                                 QtWidgets.QMessageBox.warning(self, 'Error','Problem with Right ROI')
                                 return
-                            if x> view_width/2:
+                            if x> self._FaceCenter[0]-1:
                                 QtWidgets.QMessageBox.warning(self, 'Error','Problem with Right ROI')
                                 return
                             if y < 0:
@@ -1364,7 +1364,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         if (self._LeftROI is not None):
                             
                             for (x,y) in self._LeftROI:
-                                if x < view_width/2:
+                                if x < self._FaceCenter[0]+1:
                                     QtWidgets.QMessageBox.warning(self, 'Error','Problem with Left ROI')
                                     return
                                 if x > view_width:
@@ -1381,7 +1381,7 @@ class MainWindow(QtWidgets.QMainWindow):
                             Process.exec_()
                             
                             if Process.Canceled is True :
-                                self._results = None
+                                #self._results = None
                                 pass
                             else:
                                 self._results = Process._results
@@ -1499,8 +1499,8 @@ class MainWindow(QtWidgets.QMainWindow):
      
     def plot_function(self):
         if self._results is not None:
-            right = np.sum(self._results[:,1])
-            left = np.sum(self._results[:,2])
+            right = np.sum(self._results[1:,1]-self._results[1,1])
+            left = np.sum(self._results[1:,2]-self._results[1,2])
             
             max_r = max(self._results[:,1])
             max_l = max(self._results[:,2])
