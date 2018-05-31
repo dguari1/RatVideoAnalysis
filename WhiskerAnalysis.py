@@ -434,7 +434,7 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
         else:
             Files = os.listdir(name)            
-            ext=('.png', '.jpg', '.jpeg', '.bmp','tif', 'tiff', '.PNG', '.JPG', '.JPEG', '.BMP', '.TIF', '.TIFF')
+            ext=('.png', '.jpg', '.jpeg', '.bmp','.tif', '.tiff', '.PNG', '.JPG', '.JPEG', '.BMP', '.TIF', '.TIFF')
             Files = [i for i in Files if i.endswith(tuple(ext))]
 
             
@@ -536,7 +536,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 name = VidWin._newfolder
                 Files = os.listdir(name)            
-                ext=('.png', '.jpg', '.jpeg', '.bmp','tif', 'tiff', '.PNG', '.JPG', '.JPEG', '.BMP', 'TIF', 'TIFF')
+                ext=('.png', '.jpg', '.jpeg', '.bmp','.tif', '.tiff', '.PNG', '.JPG', '.JPEG', '.BMP', 'TIF', 'TIFF')
                 Files = [i for i in Files if i.endswith(tuple(ext))]
                 
                 #reset everything 
