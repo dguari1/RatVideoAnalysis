@@ -150,7 +150,7 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.setGeometry(5,60,700,500)
         self.setWindowTitle('Whisker Analysis')
         scriptDir = os.getcwd()
-        self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'face_icon.ico'))
+        self.setWindowIcon(QtGui.QIcon(scriptDir + os.path.sep + 'include' +os.path.sep +'face_icon.ico'))
         self.background_color = self.palette().color(QtGui.QPalette.Background)
         
         #initialize the User Interface

@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['WhiskerAnalysis.py'],
-             pathex=['C:\\Users\\guarind\\Documents\\GitHub\\RatVideoAnalysis'],
+             pathex=['C:\\Users\\GUARIND\\Documents\\GitHub\\RatVideoAnalysis'],
              binaries=[],
              datas=[],
              hiddenimports=[],
