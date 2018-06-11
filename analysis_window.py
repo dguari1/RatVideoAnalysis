@@ -17,7 +17,7 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 
 
-from multiprocessing import Pool
+from multiprocessing import Pool, freeze_support
 from functools import partial
 
 
@@ -1229,6 +1229,8 @@ class AnalysisWindow(QDialog):
 
         
 if __name__ == '__main__':
+    
+    freeze_support()
     app = QtWidgets.QApplication([])
 #    if not QtWidgets.QApplication.instance():
 #        app = QtWidgets.QApplication(sys.argv)

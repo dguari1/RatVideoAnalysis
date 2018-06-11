@@ -18,6 +18,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 
 #add an option to load and save parameters
 
+from multiprocessing import freeze_support
 
 from ImageViewer import ImageViewer
 
@@ -1779,6 +1780,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
 
 if __name__ == '__main__':
+
+    freeze_support()
     
     if not QtWidgets.QApplication.instance():
         app = QtWidgets.QApplication(sys.argv)

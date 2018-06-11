@@ -3,11 +3,11 @@
 block_cipher = None
 
 
-a = Analysis(['WhiskerAnalysis.py'],
+a = Analysis(['RatVideoAnalysis.py'],
              pathex=['C:\\Users\\GUARIND\\Documents\\GitHub\\RatVideoAnalysis'],
              binaries=[],
              datas=[],
-             hiddenimports=[],
+             hiddenimports=['sklearn.neighbors.typedefs'],
              hookspath=[],
              runtime_hooks=[],
              excludes=[],
@@ -20,10 +20,10 @@ exe = EXE(pyz,
           a.scripts,
           exclude_binaries=True,
           name='RatVideoAnalysis',
-          debug=False,
+          debug=True,
           strip=False,
           upx=True,
-          console=False, icon='face_icon.ico' )
+          console=True )
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,
