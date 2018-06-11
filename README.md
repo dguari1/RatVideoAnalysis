@@ -16,3 +16,10 @@ Video examples (Frames of video) for processing can be found in .../demo_frames
 A detailed explanation of the usage can be locate in the wiki
 
 Further explanaition of the algorithm can be found in .../documents 
+
+
+A pre-compiled windows app can be download from:
+
+https://myfiles.meei.harvard.edu/users/hilll/Jowett-Nate/RatVideoAnalysis.zip?ticket=t_fkYWvlVo
+
+Just get the .zip file, unzip it and run de file RatVideoAnalysis.exe
