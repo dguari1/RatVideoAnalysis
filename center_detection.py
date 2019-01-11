@@ -8,6 +8,7 @@ Created on Tue May  8 14:48:49 2018
 import cv2
 import numpy as np
 
+
 def find_center_whiskerpad(image):
     
     if len(image.shape) == 3: #if image is color, then convert it to gray scale
@@ -52,7 +53,7 @@ def find_center_whiskerpad(image):
     only_eyes[only_eyes!= 0] = 255
     
     #apply erosion and dilatation to remove small objects (noise) and combine large pieces together (eyes might be divided by fur, we don't want that)
-    #the used kernels work fine for the images under analysis, they might need to be changes for different image size
+    #the used kernels work fine for the images under analysis, they might need to be changed for different image size
     only_eyes =  cv2.erode(only_eyes,kernel_erode1,iterations=1)
     only_eyes =  cv2.dilate(only_eyes,kernel_dilat2,iterations=1)
     #this image should contain the eyes and other big dark areas in the face. Plot it to verify results 
@@ -78,11 +79,14 @@ def find_center_whiskerpad(image):
     
     #the remainder contours are not squares and don't touch the borders. Apply a similarity index between 
     Eyes = []
+    if len(selected_contours) == 1: #problem finding the eyes, return error
+        return (0,0),(0,0),(0,0),Eyes_Found
+    
     if len(selected_contours) == 2: #if there are only two contours then they are probably the eyes.... let's roll with it 
         Eyes = selected_contours 
         Eyes_Found = True
         
-    else: #if there are more than two contours then we have to find what countours are eyes (if any)
+    if len(selected_contours) > 2: #if there are more than two contours then we have to find what countours are eyes (if any)
 
         #compute a similarity matrix between contours, this computes the Hu moments of each contour and generates a similarity index between contours
         #Hu moments are invariant for rotation and translation so they should be able to detect two ellipses with different rotations 
@@ -161,3 +165,82 @@ def find_center_whiskerpad(image):
         
         return (0,0),(0,0),(0,0),Eyes_Found
         
+    
+def find_center_eyes_with_click(image, RightEye, LeftEye):
+    
+    #verify that left(x) is larger thatn Right(x)
+    if LeftEye[0]>RightEye[0]:
+        pass
+    else:
+        temp1 = LeftEye
+        temp2 = RightEye
+        RightEye = temp1
+        LeftEye = temp2
+ 
+    if len(image.shape) == 3: #if image is color, then convert it to gray scale
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+     
+#    cv2.namedWindow("example0")
+#    cv2.imshow("example0",image)    
+        
+    RightEye_area = image.copy() 
+    RightEye_area = RightEye_area[RightEye[1]-3:RightEye[1]+3, RightEye[0]-3:RightEye[0]+3]    
+    mean_thresholdRight = np.mean(RightEye_area)
+    
+    LeftEye_area = image.copy() 
+    LeftEye_area = LeftEye_area[LeftEye[1]-3:LeftEye[1]+3, LeftEye[0]-3:LeftEye[0]+3]    
+    mean_thresholdLeft = np.mean(LeftEye_area)
+    
+    mean_threshold = np.uint8((mean_thresholdRight+mean_thresholdLeft)/2)
+    
+    #mean_threshold = mean_threshold.as
+    
+    image_to_process = image.copy()
+    image_to_process[image_to_process>mean_threshold+3] = 255
+    image_to_process[image_to_process<mean_threshold-3] = 0
+    
+    
+    #define kernels (only once). This works fine with current images (720x500), might need to be changed if image size changes
+    Kernel_dilat1 = np.ones((11,11), np.uint8)
+    kernel_erode1 = np.ones((23,23), np.uint8)
+    kernel_dilat2 = np.ones((21,21), np.uint8)
+        
+    #dilate original image to remove small objects
+    image_to_process = cv2.erode(image_to_process,kernel_erode1,iterations=1)
+    image_to_process = cv2.dilate(image_to_process,kernel_dilat2,iterations=1)
+    
+    
+    #use cv2 to detect the different contours in the binary image, some of these contours should be the eyes (if they are open)
+    _,contours,hierarchy = cv2.findContours(image_to_process, cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
+    
+    dist_left = []
+    dist_right = []
+    centers_=[]
+    for cnt in contours:
+        M = cv2.moments(cnt)
+        cx = int(M['m10']/M['m00'])
+        cy = int(M['m01']/M['m00'])
+        centers_.append(np.asarray([cx,cy]))
+        dist_right.append(np.sqrt((cx-RightEye[0])**2 + (cy-RightEye[1])**2))
+        dist_left.append(np.sqrt((cx-LeftEye[0])**2 + (cy-LeftEye[1])**2))
+        
+        #info_eyes.append((cx,cy))
+    
+    right_pos = centers_[np.argmin(dist_right)]
+    left_pos = centers_[np.argmin(dist_left)]
+    
+    
+    mid_eyes = np.array([0,0])
+    if right_pos[1] > left_pos[1]:
+        mid_eyes[1] = np.uint((left_pos[1]-right_pos[1])/2 + right_pos[1])
+    elif right_pos[1] < left_pos[1]:
+        mid_eyes[1] = np.uint((right_pos[1]-left_pos[1])/2 + left_pos[1])
+    else:
+       mid_eyes[1] = np.int(right_pos[1]) 
+       
+    mid_eyes[0] = np.uint((left_pos[0]-right_pos[0])/2 + right_pos[0])
+
+    return mid_eyes
+    
+    #cv2.namedWindow("example")
+    #cv2.imshow("example",image_to_process)

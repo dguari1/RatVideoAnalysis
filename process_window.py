@@ -16,6 +16,7 @@ from PyQt5.QtCore import QFile, QTextStream
 from PyQt5.QtWidgets import QLabel, QPushButton, QDialog, QSpinBox, QCheckBox, QLineEdit
 
 from analysis_window import AnalysisWindow
+from Init_Conditions_Window import InitConditionsWindow
 
 #import matplotlib.pyplot as plt
 
@@ -50,7 +51,7 @@ class Analize_Data(object):
 class ProcessWindow(QDialog):
         
     
-    def __init__(self, List=None, folder=None, RightROI=None, LeftROI=None, FaceCenter=None, threshold = None, rotation_angle = None):
+    def __init__(self, List=None, folder=None, RightROI=None, LeftROI=None, FaceCenter=None, threshold = None, rotation_angle = None, initial_conditions =  None):
         super(ProcessWindow, self).__init__()
         
         self._MultiProcessor = True
@@ -68,8 +69,8 @@ class ProcessWindow(QDialog):
         self._file_to_save = ''
         self._camera_fps = 1
         self._SubSample = 1 
-        self._minAngle = -3.5
-        self._maxAngle = 3.5
+        self._minAngle = -3.0
+        self._maxAngle = 3.0
         self._NumAngles = 50
         self._angles = np.array([],dtype = np.float)
         
@@ -85,6 +86,11 @@ class ProcessWindow(QDialog):
             self._EndFrame = 1
         else:
             self._EndFrame = len(List)
+            
+            
+        self._initial_conditions = initial_conditions
+        if self._initial_conditions is None:
+            self._initial_conditions = np.array([0,0])
             
             
         self._results = None #where results will be stored 
@@ -116,6 +122,21 @@ class ProcessWindow(QDialog):
         
         
         newfont = QtGui.QFont("Times", 12)
+        
+        
+#        self._InitConditionsButton = QPushButton('&Compute Initial Conditions', self)
+#        self._InitConditionsButton.setFixedWidth(250)
+#        self._InitConditionsButton.setFont(newfont)
+#        self._InitConditionsButton.clicked.connect(self.InitConditions)   
+#        
+#        InitConditions = QtWidgets.QGroupBox('Initial Conditions')
+#        InitConditions.setStyleSheet(self.getStyleSheet(scriptDir + os.path.sep + 'include' + os.path.sep + 'GroupBoxStyle.qss'))
+#        InitConditionsBoxLayout = QtWidgets.QVBoxLayout()
+#        InitConditionsBoxLayout.addWidget(self._InitConditionsButton) 
+#        InitConditionsBoxLayout.setAlignment(QtCore.Qt.AlignCenter)          
+#        InitConditions.setLayout(InitConditionsBoxLayout)
+        
+        
         
         self._label_process1 = QLabel('Use Multiple Processors:')
         self._label_process1.setFont(newfont)
@@ -340,6 +361,12 @@ class ProcessWindow(QDialog):
         
         
         layout = QtWidgets.QVBoxLayout()
+        
+#        layout.addWidget(InitConditions)
+#        spacerv = QtWidgets.QWidget(self)
+#        spacerv.setFixedSize(0,20)
+#        layout.addWidget(spacerv)
+        
         layout.addWidget(ProcessBox)
         spacerv = QtWidgets.QWidget(self)
         spacerv.setFixedSize(0,20)
@@ -371,6 +398,11 @@ class ProcessWindow(QDialog):
         self.setFixedSize(self.size())
         
         #self.show()   
+        
+        
+#    def InitConditions(self):
+#        InitialConditions = InitConditionsWindow(FileList=self._List, Folder=self._folder, FaceCenter=self._FaceCenter, threshold = self._threshold)
+#        InitialConditions.exec_()
         
     def NoParallel(self):
         if self._check_process_no.isChecked():
@@ -536,7 +568,7 @@ class ProcessWindow(QDialog):
         #this is where all the work will be done, this new window receives all the 
         #information from the main window and this form 
 
-        runme = AnalysisWindow(self._List, self._folder, self._RightROI, self._LeftROI, self._FaceCenter, self._threshold, self._angles, parallel, saveInfo, resultsInfo)
+        runme = AnalysisWindow(self._List, self._folder, self._RightROI, self._LeftROI, self._FaceCenter, self._threshold, self._angles, parallel, saveInfo, resultsInfo, self._initial_conditions)
         runme.exec_()
         
         if runme.Canceled is True: #user canceled the process, let's leave the window open

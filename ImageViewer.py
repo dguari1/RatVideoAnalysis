@@ -59,6 +59,11 @@ class ImageViewer(QtWidgets.QGraphicsView):
         
         self._temp_storage_right = [] #this is a variable that is used to store temporary data... :)
         self._temp_storage_left = [] #this is a variable that is used to store temporary data... :)
+        
+        
+        self._isRightEyeInit = False
+        self._isLeftEyeInit = False
+        self._isSnoutInit = False
 
     def setPhotoFirstTime(self, pixmap = None, result = None):
         #this function puts an image in the scece (if pixmap is not None), it
@@ -165,6 +170,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
             view_width=rect.width()
             view_height=rect.height()
             
+            
             if self._isFaceCenter is True: #user is going to select the center of the face 
                 #remove the Drag  and change cursor
                 self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
@@ -233,7 +239,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
             elif self._isManualEstimation is True: #the user wants to start manual marking 
                 
                 if event.button() == QtCore.Qt.LeftButton: #this will only works with left click
-                
+                    
                     #self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
                     self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
                     
@@ -316,11 +322,9 @@ class ImageViewer(QtWidgets.QGraphicsView):
                                 self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),len(self._temp_storage_left),'append')  
                                 
                             self.draw_line(self._FaceCenter[0],self._FaceCenter[1],x_mousePos,y_mousePos, 0, 0.1)
-                            
-                                          
                 
                 elif event.button() == QtCore.Qt.RightButton: #on right button just finish
-                    
+
                     self._isManualEstimation = False
                     self._rad = None
                     for item in self._scene.items():
@@ -331,14 +335,50 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     self._temp_storage_left = []    
                     self.finished.emit()
 
-                        
+
+            elif self._isRightEyeInit is True:
+
+                if event.button() == QtCore.Qt.LeftButton:
+                
+                    scenePos = self.mapToScene(event.pos()) #take the position of the mouse
+                    x_mousePos = scenePos.toPoint().x()
+                    y_mousePos = scenePos.toPoint().y()     
+                    self.draw_circle([x_mousePos,y_mousePos,3], 'small','cyan')  
+                    self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),0,'--')  
+                    
+            elif self._isLeftEyeInit is True:
+
+                if event.button() == QtCore.Qt.LeftButton:
+                
+                    scenePos = self.mapToScene(event.pos()) #take the position of the mouse
+                    x_mousePos = scenePos.toPoint().x()
+                    y_mousePos = scenePos.toPoint().y()     
+                    self.draw_circle([x_mousePos,y_mousePos,3], 'small','magenta')  
+                    self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),0,'--')  
+                    
+            elif self._isSnoutInit is True:
+
+                if event.button() == QtCore.Qt.LeftButton:
+                
+                    scenePos = self.mapToScene(event.pos()) #take the position of the mouse
+                    x_mousePos = scenePos.toPoint().x()
+                    y_mousePos = scenePos.toPoint().y()
+                    if abs(self._FaceCenter[0]-x_mousePos) >= 3:
+                        pass
+                    else:
+                        self.draw_circle([x_mousePos,y_mousePos,3], 'small','white')  
+                        self.signalEmit.emit(np.asarray([x_mousePos,y_mousePos]),0,'--') 
+
+                    
             elif event.button() == QtCore.Qt.LeftButton:
                     
                     self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
                     
-                            
+                          
                             
             QtWidgets.QGraphicsView.mousePressEvent(self, event)
+            
+            
             
     def mouseReleaseEvent(self, event):     
         #this function defines what happens when you release the mouse click
@@ -361,7 +401,15 @@ class ImageViewer(QtWidgets.QGraphicsView):
         elif self._isManualEstimation is True:
             #self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
             self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
-        
+        elif self._isRightEyeInit is True:
+            #self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+            self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        elif self._isLeftEyeInit is True:
+            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+            self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        elif self._isSnoutInit is True:
+            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+            self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         
         QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
 
@@ -438,6 +486,20 @@ class ImageViewer(QtWidgets.QGraphicsView):
                     self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
                     self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))  
             
+            elif self._isRightEyeInit is True:
+                #remove the Drag  and change cursor
+                self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))  
+                
+            elif self._isLeftEyeInit is True:
+                #remove the Drag  and change cursor
+                self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))  
+                
+            elif self._isSnoutInit is True:
+                #remove the Drag  and change cursor
+                self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+                self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))  
             #else:
             #   self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
 
@@ -474,7 +536,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
         self._scene.addItem(TextItem)
         
 
-    def draw_circle(self, CircleInformation, circletype = None ):
+    def draw_circle(self, CircleInformation, circletype = None, Color = 'red' ):
         #this function draws an circle with specific center and radius 
         
         Ellipse = QtWidgets.QGraphicsEllipseItem(0,0,CircleInformation[2]*2,CircleInformation[2]*2)
@@ -499,10 +561,24 @@ class ImageViewer(QtWidgets.QGraphicsView):
             Ellipse.setPen(pen)   
         elif circletype == 'small':
             #ellipse will be yellow
-            pen = QtGui.QPen(QtCore.Qt.red)
+            if Color is 'red':
+                color = QtCore.Qt.red
+            elif Color is 'yellow':
+                color = QtCore.Qt.yellow
+            elif Color is 'blue':
+                color = QtCore.Qt.blue
+            elif Color is 'cyan':
+                color = QtCore.Qt.cyan
+            elif Color is 'magenta':
+                color = QtCore.Qt.magenta
+            elif Color is 'white':
+                color = QtCore.Qt.white
+                
+            
+            pen = QtGui.QPen(color)
             pen.setWidth(1)
             Ellipse.setPen(pen)
-            brush = QtGui.QBrush(QtCore.Qt.red) 
+            brush = QtGui.QBrush(color) 
             Ellipse.setBrush(brush)
               
         #this is the position of the top-left corner of the ellipse.......

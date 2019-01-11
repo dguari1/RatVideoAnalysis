@@ -104,20 +104,31 @@ def rot_estimation(ListofFiles,ExtraInfo):
     if rotation_angle is not None: #rotate
         M_overall = cv2.getRotationMatrix2D(tuple(int(w_orig/2),int(h_orig/2)), rotation_angle, 1.0)
         image = cv2.warpAffine(image, M_overall, (w_orig, h_orig))
-    
+        
+    #create the mask that will cover only the whiskers in left and right sides of the face    
+    mask = np.zeros(image.shape, np.uint8)        
     #we have to do different operation depending on what side 
     if Side == 'Right':
-        ROI = RightROI
+#        ROI = RightROI
         image = image[:,0:center[0]] #take right side
         face_edge = face_edge[:,0:center[0]]
         if bc:
             pass
         else:
             threshold = threshold[:,0:center[0]]
+            
+        cv2.fillConvexPoly(mask, RightROI, (255,255,255))
+        mask = mask[:,0:center[0]]
+        #find the rectangle that encloses the mask 
+        im, contours, hierarchy = cv2.findContours(mask, 1, 2)
+        cnt = contours[0]
+        x,y,w,h = cv2.boundingRect(cnt)
+        lims_x = [x, x+w]
+        lims_y = [w, w+h]
     else:
-        ROI = LeftROI
-        ROI = [2*center[0],0]-ROI  #mirror the left ROI to the right 
-        ROI[:,1]=abs(ROI[:,1])  #correct the minus sign in the y column
+#        ROI = LeftROI
+#        ROI = [2*center[0],0]-ROI  #mirror the left ROI to the right 
+#        ROI[:,1]=abs(ROI[:,1])  #correct the minus sign in the y column
         image = cv2.flip(image,1) #mirror it
         image = image[:,0:w_orig-center[0]]  #take left side
         
@@ -128,22 +139,32 @@ def rot_estimation(ListofFiles,ExtraInfo):
         else:
             threshold = cv2.flip(threshold,1)
             threshold = threshold[:,0:w_orig-center[0]]
+            
+        cv2.fillConvexPoly(mask, LeftROI, (255,255,255))
+        mask = cv2.flip(mask,1) #mirror it
+        mask = mask[:,0:w_orig-center[0]]  #take left side
         
-
-    #print(Side)
-    
-    lims_x=[min(ROI[:,0])-10, max(ROI[:,0])+10]
-    if lims_x[0]<0:
-        lims_x[0]=0
-    if lims_x[1]>center[0]:
-        lims_x[1]=center[0]
-        
-    lims_y=[min(ROI[:,1])-10, max(ROI[:,1])+10]
-    if lims_y[0]<0:
-        lims_y[0]=0
-    if lims_y[1]>h_orig:
-        lims_y[1]=h_orig    
-    #print(lims_x,lims_y)
+        #find the rectangle that encloses the mask 
+        im, contours, hierarchy = cv2.findContours(mask, 1, 2)
+        cnt = contours[0]
+        x,y,w,h = cv2.boundingRect(cnt)
+        lims_x = [x, x+w]
+        lims_y = [w, w+h]
+      
+#    #print(Side)
+#    
+#    lims_x=[min(ROI[:,0])-10, max(ROI[:,0])+10]
+#    if lims_x[0]<0:
+#        lims_x[0]=0
+#    if lims_x[1]>center[0]:
+#        lims_x[1]=center[0]
+#        
+#    lims_y=[min(ROI[:,1])-10, max(ROI[:,1])+10]
+#    if lims_y[0]<0:
+#        lims_y[0]=0
+#    if lims_y[1]>h_orig:
+#        lims_y[1]=h_orig    
+#    #print(lims_x,lims_y)
     if bc:  #remove background by thresholding
         #apply threshold
         image[image>threshold] = 255
@@ -159,9 +180,11 @@ def rot_estimation(ListofFiles,ExtraInfo):
         image = np.multiply(image,face_edge)#.astype(np.uint8)
         image[image>0]=255
     
-    #create the mask that will cover only the whiskers in left and right sides of the face
-    mask = np.zeros(image.shape, np.uint8)    
-    cv2.fillConvexPoly(mask, ROI, (255,255,255))
+
+    
+#    #create the mask that will cover only the whiskers in left and right sides of the face    
+#    mask = np.zeros(image.shape, np.uint8)    
+#    cv2.fillConvexPoly(mask, ROI, (255,255,255))
 
     
     results= np.zeros((1,1),dtype = np.float64) #this vector will take care of storing the results
@@ -208,12 +231,18 @@ def rot_estimation(ListofFiles,ExtraInfo):
             old_temp = np.zeros([h,w], np.uint8)     
             cv2.bitwise_and(old_image,mask,old_temp) 
             
+#            cv2.namedWindow("test")
+#            cv2.imshow("test",mask)
+#            cv2.namedWindow("test2")
+#            cv2.imshow("test2",old_temp)
+            
             if counter == 0:
                 #first run using all angles 
                 res = np.zeros((len(angles),1),dtype = np.float64)
 
                 
                 old_small_image= cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale)
+                
                 
                 for index,angle in enumerate(angles):
                     
@@ -223,6 +252,9 @@ def rot_estimation(ListofFiles,ExtraInfo):
                     #apply the mask to selected ROI in rotated image 
                     temp = np.zeros([h,w], np.uint8)     
                     cv2.bitwise_and(rotated,mask,temp) 
+                    
+#                    cv2.namedWindow(str(index))
+#                    cv2.imshow(str(index),temp)
     
                     #find the correlation between the previous frame and the rotate version of the current frame                                                     
                     correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
@@ -236,101 +268,123 @@ def rot_estimation(ListofFiles,ExtraInfo):
                 results = np.append(results, select_val) 
                 #print('thas')
             else: 
-                #now from the third frame we can strat secting weather to use only positive or negative angles 
-                 
-                #if the sign is negative in two consecutive samples, and the angle is less than 15% of the largest negative angle
-                #then the movement will still be in the same direction
-                #print(results[counter])
-                if (results[counter] < 0 and results[counter-1] < 0) and results[counter]<angles[0]*0.15: 
-                    res = np.zeros((len(angles_neg),1),dtype = np.float64)
+#                #now from the third frame we can strat secting weather to use only positive or negative angles 
+#                 
+#                #if the sign is negative in two consecutive samples, and the angle is less than 15% of the largest negative angle
+#                #then the movement will still be in the same direction
+#                #print(results[counter])
+#                if (results[counter] < 0 and results[counter-1] < 0) and results[counter]<angles[0]*0.15: 
+#                    res = np.zeros((len(angles_neg),1),dtype = np.float64)
+#                    
+#                    old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
+#                    
+#                    ang = angles
+#                    
+#                    for index,angle in enumerate(angles_neg):
+#                        
+#                        #rotate the frame
+#                        M = cv2.getRotationMatrix2D(tuple(center), angle, 1.0)
+#                        rotated = cv2.warpAffine(image, M, (w, h))
+#                        
+#                        #apply the mask to selected ROI in rotated image 
+#                        temp = np.zeros([h,w], np.uint8)     
+#                        cv2.bitwise_and(rotated,mask,temp) 
+#                       
+#        
+#                        #find the correlation between the previous frame and the rotate version of the current frame                                                     
+#                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
+#                        
+#                        #store the results 
+#                        res[index,0] = correl    
+#                        
+#                    #select the angle that provided the largest correlation     
+#                    select_val = angles_neg[np.argmax(res)]
+#                    
+#                    #store the results 
+#                    results = np.append(results, select_val) 
+#                    #print('this')
+#                #if the sign is positive in two consecutive samples, and the angle is less than 15% of the largest positive angle 
+#                #then the movement will still be in the same direction
+#                elif (results[counter] > 0 and results[counter-1] > 0) and results[counter]>angles[-1]*0.15: 
+#                    res = np.zeros((len(angles_pos),1),dtype = np.float64)
+#                    
+#                    old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
+#                    
+#                    ang = angles
+#                    
+#                    for index,angle in enumerate(angles_pos):
+#                        
+#                        #rotate the frame
+#                        M = cv2.getRotationMatrix2D(tuple(center), angle, 1.0)
+#                        rotated = cv2.warpAffine(image, M, (w, h))
+#                        
+#                        #apply the mask to selected ROI in rotated image 
+#                        temp = np.zeros([h,w], np.uint8)     
+#                        cv2.bitwise_and(rotated,mask,temp) 
+#                       
+#        
+#                        #find the correlation between the previous frame and the rotate version of the current frame                                                     
+#                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
+#                        
+#                        #store the results 
+#                        res[index,0] = correl    
+#                        
+#                    #select the angle that provided the largest correlation     
+#                    select_val = angles_pos[np.argmax(res)]
+#                    
+#                    #store the results 
+#                    results = np.append(results, select_val) 
+#                    #print('thos')
+#                #if there is change in the sign then the whisker is changing direction, we have to analize all angles 
+#                else: 
                     
-                    old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
+                res = np.zeros((len(angles),1),dtype = np.float64)
+                
+                old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
+                
+                
+                for index,angle in enumerate(angles):
                     
-                    for index,angle in enumerate(angles_neg):
-                        
-                        #rotate the frame
-                        M = cv2.getRotationMatrix2D(tuple(center), angle, 1.0)
-                        rotated = cv2.warpAffine(image, M, (w, h))
-                        
-                        #apply the mask to selected ROI in rotated image 
-                        temp = np.zeros([h,w], np.uint8)     
-                        cv2.bitwise_and(rotated,mask,temp) 
-                       
-        
-                        #find the correlation between the previous frame and the rotate version of the current frame                                                     
-                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
-                        
-                        #store the results 
-                        res[index,0] = correl    
-                        
-                    #select the angle that provided the largest correlation     
-                    select_val = angles_neg[np.argmax(res)]
+                    #rotate the frame
+                    M = cv2.getRotationMatrix2D(tuple(center), angle, 1.0)
+                    rotated = cv2.warpAffine(image, M, (w, h))
+                    
+                    #apply the mask to selected ROI in rotated image 
+                    temp = np.zeros([h,w], np.uint8)     
+                    cv2.bitwise_and(rotated,mask,temp) 
+                    
+#                    cv2.namedWindow(str(index))
+#                    cv2.imshow(str(index),temp)
+                   
+    
+                    #find the correlation between the previous frame and the rotate version of the current frame                                                     
+                    correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
                     
                     #store the results 
-                    results = np.append(results, select_val) 
-                    #print('this')
-                #if the sign is positive in two consecutive samples, and the angle is less than 15% of the largest positive angle 
-                #then the movement will still be in the same direction
-                elif (results[counter] > 0 and results[counter-1] > 0) and results[counter]>angles[-1]*0.15: 
-                    res = np.zeros((len(angles_pos),1),dtype = np.float64)
+                    res[index,0] = correl    
                     
-                    old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
+                #select the angle that provided the largest correlation     
+                select_val = angles[np.argmax(res)]
+                
+                #store the results 
+                results = np.append(results, select_val) 
+                #print('thus')
                     
-                    for index,angle in enumerate(angles_pos):
-                        
-                        #rotate the frame
-                        M = cv2.getRotationMatrix2D(tuple(center), angle, 1.0)
-                        rotated = cv2.warpAffine(image, M, (w, h))
-                        
-                        #apply the mask to selected ROI in rotated image 
-                        temp = np.zeros([h,w], np.uint8)     
-                        cv2.bitwise_and(rotated,mask,temp) 
-                       
-        
-                        #find the correlation between the previous frame and the rotate version of the current frame                                                     
-                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
-                        
-                        #store the results 
-                        res[index,0] = correl    
-                        
-                    #select the angle that provided the largest correlation     
-                    select_val = angles_pos[np.argmax(res)]
-                    
-                    #store the results 
-                    results = np.append(results, select_val) 
-                    #print('thos')
-                #if there is change in the sign then the whisker is changing direction, we have to analize all angles 
-                else: 
-                    
-                    res = np.zeros((len(angles),1),dtype = np.float64)
-                    
-                    old_small_image = cv2.resize(old_temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=0.5,fy=0.5)
-                    
-                    for index,angle in enumerate(angles):
-                        
-                        #rotate the frame
-                        M = cv2.getRotationMatrix2D(tuple(center), angle, 1.0)
-                        rotated = cv2.warpAffine(image, M, (w, h))
-                        
-                        #apply the mask to selected ROI in rotated image 
-                        temp = np.zeros([h,w], np.uint8)     
-                        cv2.bitwise_and(rotated,mask,temp) 
-                       
-        
-                        #find the correlation between the previous frame and the rotate version of the current frame                                                     
-                        correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
-                        
-                        #store the results 
-                        res[index,0] = correl    
-                        
-                    #select the angle that provided the largest correlation     
-                    select_val = angles[np.argmax(res)]
-                    
-                    #store the results 
-                    results = np.append(results, select_val) 
-                    #print('thus')
+   
+    
+    
+#            if Side == 'Right':
+#                location = os.path.join(r'G:\bad_test\corr\right',file[:-4]+'csv')
+#                #np.savetxt(location, np.c_[angles, res], delimiter=",")
+#                np.savetxt(location, np.c_[ang,res], delimiter=",")
+#            else:
+#                location = os.path.join(r'G:\bad_test\corr\left',file[:-4]+'csv')
+#                #np.savetxt(location, np.c_[angles, res], delimiter=",")
+#                np.savetxt(location, np.c_[ang,res], delimiter=",")                    
+                
 
-        
+    print(res)
+
     #return the angles 
     return results    
 
@@ -710,7 +764,7 @@ class FramesAnalysis(QObject):
     finished = pyqtSignal()
     Results = pyqtSignal(object, object, float, int)
     
-    def __init__(self,pool,folder_name,ListofFiles, FaceCenter, RightROI, LeftROI, threshold, angles, parallel, resultsInfo):
+    def __init__(self,pool,folder_name,ListofFiles, FaceCenter, RightROI, LeftROI, threshold, angles, parallel, resultsInfo, initial_conditions):
         super(FramesAnalysis, self).__init__()
         
         self._foldername = folder_name
@@ -724,7 +778,7 @@ class FramesAnalysis(QObject):
         self._resultsInfo = resultsInfo
         self._Pool = pool
         
-
+        self._initial_conditions = initial_conditions        
 
     @pyqtSlot()
     def ProcessFrames(self):
@@ -732,7 +786,7 @@ class FramesAnalysis(QObject):
         Files = self._ListofFiles   
         
         #compute initial conditions on left and right sides
-        init_cond = initial_conditions(Files, self._foldername, self._FaceCenter, self._threshold)
+        init_cond = self._initial_conditions #initial_conditions(Files, self._foldername, self._FaceCenter, self._threshold)
 
         rotation_angle = self._resultsInfo._rotation_angle  #get the desired rotation angle 
         
@@ -918,8 +972,7 @@ class FramesAnalysis(QObject):
                 
                 #put everythin togehter 
                 results= np.c_[np.zeros(results_left.shape), results_left]
-        
-                                                                                            
+                                                                                                    
         #submit results to the main window 
         self.Results.emit(results, init_cond, duration, agents)
         #now inform that is over
@@ -930,7 +983,7 @@ class FramesAnalysis(QObject):
 class AnalysisWindow(QDialog):
         
         
-    def __init__(self, List=None, folder= None, RightROI=None, LeftROI=None, FaceCenter=None, threshold = None, angles = None, Parallel= None, SaveInfo=None, ResultsInfo= None):
+    def __init__(self, List=None, folder= None, RightROI=None, LeftROI=None, FaceCenter=None, threshold = None, angles = None, Parallel= None, SaveInfo=None, ResultsInfo= None, initial_conditions =  None):
         super(AnalysisWindow, self).__init__()
         
         #take all the info and store it locally. 
@@ -944,6 +997,8 @@ class AnalysisWindow(QDialog):
         self._Parallel = Parallel
         self._SaveInfo = SaveInfo
         self._ResultsInfo = ResultsInfo
+        
+        self._initial_conditions = initial_conditions
         
 
          # create Thread  to take care of video processing    
@@ -1069,7 +1124,7 @@ class AnalysisWindow(QDialog):
 
     def Done(self):
         #move the frames processing to another thread 
-        self.FrameAna = FramesAnalysis(self._Pool, self._folder, self._selectedList, self._FaceCenter, self._RightROI, self._LeftROI, self._threshold, self._angles, self._Parallel, self._ResultsInfo)
+        self.FrameAna = FramesAnalysis(self._Pool, self._folder, self._selectedList, self._FaceCenter, self._RightROI, self._LeftROI, self._threshold, self._angles, self._Parallel, self._ResultsInfo, self._initial_conditions)
         #move worker to new thread
         self.FrameAna.moveToThread(self.thread_frames)
         #start the new thread where the landmark processing will be performed
@@ -1229,7 +1284,7 @@ class AnalysisWindow(QDialog):
 
         
 if __name__ == '__main__':
-    
+    __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"
     freeze_support()
     app = QtWidgets.QApplication([])
 #    if not QtWidgets.QApplication.instance():

@@ -32,6 +32,8 @@ from rotation_window import RotationAngleWindow
 from Test_window import TestWindow
 from center_detection import find_center_whiskerpad
 
+from Init_Conditions_Window import InitConditionsWindow
+
 #### this piece is used to sort the files by name 
 import re
 
@@ -358,19 +360,24 @@ class MainWindow(QtWidgets.QMainWindow):
         #InitiConditionsAction.triggered.connect(self.view_init_conditions)
         
         
+        InitConditionsAction = ProcessMenu.addAction("Initial Conditions")
+        InitConditionsAction.setShortcut("Ctrl+1")
+        InitConditionsAction.setStatusTip('Estimate whisker angular displacement')
+        InitConditionsAction.triggered.connect(self.initial_conditions)
+        
         ProcessAction = ProcessMenu.addAction("Start Tracking")
-        ProcessAction.setShortcut("Ctrl+G")
+        ProcessAction.setShortcut("Ctrl+2")
         ProcessAction.setStatusTip('Estimate whisker angular displacement')
         ProcessAction.triggered.connect(self.process_function)
         
         
         PlotAction = ProcessMenu.addAction("Plot Results")
-        PlotAction.setShortcut("Ctrl+P")
+        PlotAction.setShortcut("Ctrl+3")
         PlotAction.setStatusTip('Plot estimated angular displacement')
         PlotAction.triggered.connect(self.plot_function)
         
         ResetResultsAction = ProcessMenu.addAction("Reset Results")
-        ResetResultsAction.setShortcut("Ctrl+X")
+        ResetResultsAction.setShortcut("Ctrl+4")
         ResetResultsAction.setStatusTip('Eliminate estimated angular displacement values from memory')
         ResetResultsAction.triggered.connect(self.reset_function)
         
@@ -380,7 +387,7 @@ class MainWindow(QtWidgets.QMainWindow):
 #        TestParametersAction.triggered.connect(self.testParams_function)
         
         ManualEstimationAction = ProcessMenu.addAction("Manual estimation")
-        ManualEstimationAction.setShortcut("Ctrl+I")
+        ManualEstimationAction.setShortcut("Ctrl+5")
         ManualEstimationAction.setStatusTip('Manually track the most caudal and rostal whiskers in both sides of the face. Double click cleans current frame. ')
         ManualEstimationAction.triggered.connect(self.ManualEstimation_function)
 
@@ -443,6 +450,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.critical(self, 'No Valid Files', 
                             'Selected folder does not contain valid files.\nPlease select another folder.')
             else:  #there are files
+            
                 #reset everything 
                 self.displayImage._isFaceCenter = False #variable that indicates if the face center will be localized
                 self.displayImage._FaceCenter = None #this variable defines the point selected as the face center        
@@ -497,25 +505,29 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
                 
-                
-                #find face center automatically 
-                face_center,_,_,isFaceCenter = find_center_whiskerpad(self._current_Image)
-                if isFaceCenter is True:
-                    self._FaceCenter = face_center
-                    self.displayImage._FaceCenter = face_center
- 
+                ## i'm removing the localization of face center on first load, this will be made on the initial conditions component of the code
+               
+#                #find face center automatically 
+#                face_center,_,_,isFaceCenter = find_center_whiskerpad(self._current_Image)
+#                if isFaceCenter is True:
+#                    self._FaceCenter = face_center
+#                    self.displayImage._FaceCenter = face_center
+# 
                 #show the photo
                 self.displayImage.setPhotoFirstTime(img_show)  
                 self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
                 
-                #if face center was not localized then ask the user to do it manually
-                if isFaceCenter is False:
-                    box = QtWidgets.QMessageBox()
-                    box.setIcon(QtWidgets.QMessageBox.Information)
-                    box.setWindowTitle('Face Center')
-                    box.setText('Error while finding Face center. Press Ctlr+C for manual localization')
-                    box.setStandardButtons(QtWidgets.QMessageBox.Ok)
-                    box.exec_()
+#                #if face center was not localized then ask the user to do it manually
+#                if isFaceCenter is False:
+#                    box = QtWidgets.QMessageBox()
+#                    box.setIcon(QtWidgets.QMessageBox.Information)
+#                    box.setWindowTitle('Face Center')
+#                    box.setText('Error while finding Face center. Press Ctlr+C for manual localization')
+#                    box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+#                    box.exec_()
+                    
+                    
+                self.setWindowTitle('Whisker Analysis - '+ name.split(os.path.sep)[-1])
                 
     def load_video(self):
         if self.timer.isActive(): #verify is the video is running 
@@ -593,25 +605,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
                 
+                ## i'm removing the localization of face center on first load, this will be made on the initial conditions component of the code
                 #find face center automatically 
-                face_center,_,_,isFaceCenter = find_center_whiskerpad(self._current_Image)
-                if isFaceCenter is True:
-                    self._FaceCenter = face_center
-                    self.displayImage._FaceCenter = face_center
+                #face_center,_,_,isFaceCenter = find_center_whiskerpad(self._current_Image)
+                #if isFaceCenter is True:
+                #    self._FaceCenter = face_center
+                #    self.displayImage._FaceCenter = face_center
 
                 #show the photo
                 self.displayImage.setPhotoFirstTime(img_show)   
                 #update status bar with the frame number 
                 self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
                 
-                #if face center was not localized then ask the user to do it manually
-                if isFaceCenter is False:
-                    box = QtWidgets.QMessageBox()
-                    box.setIcon(QtWidgets.QMessageBox.Information)
-                    box.setWindowTitle('Face Center')
-                    box.setText('Error while finding Face center. Press Ctlr+C for manual localization')
-                    box.setStandardButtons(QtWidgets.QMessageBox.Ok)
-                    box.exec_()
+#                #if face center was not localized then ask the user to do it manually
+#                if isFaceCenter is False:
+#                    box = QtWidgets.QMessageBox()
+#                    box.setIcon(QtWidgets.QMessageBox.Information)
+#                    box.setWindowTitle('Face Center')
+#                    box.setText('Error while finding Face center. Press Ctlr+C for manual localization')
+#                    box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+#                    box.exec_()
+                    
+                self.setWindowTitle('Whisker Analysis - '+ name.split(os.path.sep)[-1])
     
     def ExportCSV_function(self):
         if self.timer.isActive(): #verify if the video is running 
@@ -634,7 +649,7 @@ class MainWindow(QtWidgets.QMainWindow):
                             
                     self._FileName = name
                     
-                    self._SelectFile.setText(tail)
+                    #self._SelectFile.setText(tail)
                     self.update()
 
                 
@@ -1313,7 +1328,76 @@ class MainWindow(QtWidgets.QMainWindow):
             
         #show the photo
         self.displayImage.setPhoto(img_show) 
-                                          
+    
+
+    def initial_conditions(self):
+        #stop playback if active
+        if self.timer.isActive(): #verify is the video is running 
+            #activate slider and stop playback           
+            self.timer.stop()  
+
+        #verify that ererything exist and is in memory 
+        if (self._current_Image is not None) and (self._FileList is not None):
+            if (self._threshold is not None):  
+
+                self._FaceCenter = self.displayImage._FaceCenter
+              
+                #get image size, to verify location of ROI and face Center
+                rect = QtCore.QRectF(self.displayImage._photo.pixmap().rect())
+                view_width=rect.width()
+                view_height=rect.height()
+                #print(view_width, view_height)
+                
+                if (self._FaceCenter is not None):
+                    #verify position of face center 
+                    if self._FaceCenter[0]<0:
+                        QtWidgets.QMessageBox.warning(self, 'Error','Problem with Face Midline')
+                        return
+                    if self._FaceCenter[0]>view_width:
+                        QtWidgets.QMessageBox.warning(self, 'Error','Problem with Face Midline')
+                        return 
+                    
+                    
+                InitialConditions = InitConditionsWindow(FileList=self._FileList, Folder=self._Folder, FaceCenter=self._FaceCenter, threshold = self._threshold)
+                InitialConditions.exec_()
+                
+                
+                #i have to clean the screen 
+                
+                self._FrameIndex = InitialConditions._InitFrame
+                temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
+                image = cv2.cvtColor(temp_image,cv2.COLOR_BGR2RGB)
+                self._current_Image = image
+                img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
+                
+                if InitialConditions._FaceCenter is not None:
+                    #update everyting 
+                    self._FaceCenter = InitialConditions._FaceCenter
+                    self.displayImage._FaceCenter = self._FaceCenter
+                    
+                    #ange update the view                    
+                    self.displayImage.setPhotoFirstTime(img_show)   
+                    
+                if InitialConditions._Initial_Conditions[0] is not None:
+                    self._hasAngle[self._FrameIndex] = np.array([self._FrameIndex,InitialConditions._Initial_Conditions[0],InitialConditions._Initial_Conditions[1]])
+                    self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                    self.displayImage.setPhoto(img_show, self._sent_angle)
+ 
+                    
+                    
+                self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
+                self._slider.blockSignals(True)
+                self._slider.setValue(self._FrameIndex+1)
+                self._slider.blockSignals(False)   
+                    
+                
+                #print(InitialConditions._rightAngle, InitialConditions._leftAngle, InitialConditions._FaceCenter)
+           
+                            
+            else:
+                QtWidgets.QMessageBox.warning(self, 'Error','Threshold not defined')
+                return
+                           
 
     def process_function(self):
         #stop playback if active
@@ -1345,6 +1429,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     if self._FaceCenter[0]>view_width:
                         QtWidgets.QMessageBox.warning(self, 'Error','Problem with Face Midline')
                         return
+                    
+                    
 
                     if (self._RightROI is not None):
                         
@@ -1378,7 +1464,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                     QtWidgets.QMessageBox.warning(self, 'Error','Problem with Left ROI')
                                     return
 
-                            Process = ProcessWindow(List=self._FileList, folder=self._Folder, RightROI=self._RightROI, LeftROI=self._LeftROI, FaceCenter=self._FaceCenter, threshold = self._threshold)
+                            Process = ProcessWindow(List=self._FileList, folder=self._Folder, RightROI=self._RightROI, LeftROI=self._LeftROI, FaceCenter=self._FaceCenter, threshold = self._threshold, initial_conditions =self._sent_angle)
                             Process.exec_()
                             
                             if Process.Canceled is True :
@@ -1679,7 +1765,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
        
     def ManualEstimation_end(self):        
-        self._ManualEstimation = False #end manual estimation
+        self.displayImage._ManualEstimation = False #end manual estimation
 
         right = np.zeros((len(self._FileList),1))
         left = np.zeros((len(self._FileList),1))
@@ -1780,7 +1866,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
 
 if __name__ == '__main__':
-
+    __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"
     freeze_support()
     
     if not QtWidgets.QApplication.instance():
@@ -1791,6 +1877,6 @@ if __name__ == '__main__':
     app.setStyle(QtWidgets.QStyleFactory.create('Cleanlooks'))
         
     GUI = MainWindow()
-    #GUI.show()
+    GUI.show()
     app.exec_()
     
