@@ -707,20 +707,27 @@ class ImageViewer(QtWidgets.QGraphicsView):
         rect = QtCore.QRectF(self._photo.pixmap().rect())
         view_height=rect.height()
         view_width=rect.width()
-        self.draw_line(self._FaceCenter[0],0, self._FaceCenter[0],view_height)
-        self.draw_line(0,self._FaceCenter[1],view_width, self._FaceCenter[1])
         
-        #draw points
-        for (x,y) in self._RightROI:
-            self.draw_circle([x,y,3])
-            
-        for (x,y) in self._LeftROI:
-            self.draw_circle([x,y,3])
-            
-        #draw polynomials
-        self.draw_polygon(self._RightROI)
-        self.draw_polygon(self._LeftROI)
+        if self._FaceCenter is not None:
         
+            self.draw_line(self._FaceCenter[0],0, self._FaceCenter[0],view_height)
+            self.draw_line(0,self._FaceCenter[1],view_width, self._FaceCenter[1])
+        
+        if self._RightROI is not None: 
+            #draw points
+            for (x,y) in self._RightROI:
+                self.draw_circle([x,y,3])
+                
+            #draw polynomials
+            self.draw_polygon(self._RightROI)
+            
+        if self._LeftROI is not None: 
+            for (x,y) in self._LeftROI:
+                self.draw_circle([x,y,3])
+                
+            #draw polynomials
+            self.draw_polygon(self._LeftROI)
+            
     def screenshot(self,name):
 
         rect = QtCore.QRectF(self._photo.pixmap().rect())

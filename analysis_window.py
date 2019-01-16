@@ -373,14 +373,14 @@ def rot_estimation(ListofFiles,ExtraInfo):
    
     
     
-#            if Side == 'Right':
-#                location = os.path.join(r'G:\bad_test\corr\right',file[:-4]+'csv')
-#                #np.savetxt(location, np.c_[angles, res], delimiter=",")
-#                np.savetxt(location, np.c_[ang,res], delimiter=",")
-#            else:
-#                location = os.path.join(r'G:\bad_test\corr\left',file[:-4]+'csv')
-#                #np.savetxt(location, np.c_[angles, res], delimiter=",")
-#                np.savetxt(location, np.c_[ang,res], delimiter=",")                    
+            if Side == 'Right':
+                location = os.path.join(r'G:\vid_test\corr\right',file[:-4]+'csv')
+                np.savetxt(location, np.c_[angles, res], delimiter=",")
+                #np.savetxt(location, np.c_[ang,res], delimiter=",")
+            else:
+                location = os.path.join(r'G:\vid_test\corr\left',file[:-4]+'csv')
+                np.savetxt(location, np.c_[angles, res], delimiter=",")
+                #np.savetxt(location, np.c_[ang,res], delimiter=",")                    
                 
 
     print(res)

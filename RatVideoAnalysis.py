@@ -712,6 +712,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     #print(self._FaceCenter)
                 if From_File._RightROI is not None:
                     self._RightROI = From_File._RightROI  
+                    print(self._RightROI)
                 if From_File._LeftROI is not None:
                     self._LeftROI = From_File._LeftROI
                 if From_File._threshold is not None:
