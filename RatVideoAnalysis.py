@@ -664,6 +664,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 #store all avaliable data in a special class and store that class in memory in a .whisker file. File name is provided by user
                 
+                self._RightROI = self.displayImage._RightROI
+                self._LeftROI = self.displayImage._LeftROI
+                
                 ToSave = StoreResults()
                 ToSave._FaceCenter = self._FaceCenter
                 ToSave._RightROI = self._RightROI  
@@ -706,13 +709,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     QtWidgets.QMessageBox.warning(self, 'Error','Incorrect File Type')
                     return
-                    
+                print(From_File._RightROI)    
                 if From_File._FaceCenter is not None:
                     self._FaceCenter = From_File._FaceCenter
                     #print(self._FaceCenter)
                 if From_File._RightROI is not None:
-                    self._RightROI = From_File._RightROI  
-                    print(self._RightROI)
+                    self._RightROI = From_File._RightROI       
                 if From_File._LeftROI is not None:
                     self._LeftROI = From_File._LeftROI
                 if From_File._threshold is not None:
