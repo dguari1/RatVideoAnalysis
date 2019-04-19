@@ -62,7 +62,7 @@ def find_center_whiskerpad(image):
     
     
     #use cv2 to detect the different contours in the binary image, some of these contours should be the eyes (if they are open)
-    _,contours,hierarchy = cv2.findContours(only_eyes, cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
+    contours,hierarchy = cv2.findContours(only_eyes, cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
     
     #now apply a set of steps to discard the different contours in the image that are not eyes
     Eyes_Found  = False #this variable will inform if eyes cannot be found
@@ -144,7 +144,7 @@ def find_center_whiskerpad(image):
         distance = np.sqrt((temp_snout[1]-mid_face[1])**2+(temp_snout[0]-mid_face[0])**2)
 
         TEMP = 255*face[temp_snout[1]-int(distance/2):temp_snout[1]+int(distance/2),temp_snout[0]-int(distance/3):temp_snout[0]+int(distance/3)]
-        _,contours_snout,_= cv2.findContours(TEMP, cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
+        contours_snout,_= cv2.findContours(TEMP, cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
         (x,y),radius = cv2.minEnclosingCircle(contours_snout[0])
         
         
@@ -211,7 +211,7 @@ def find_center_eyes_with_click(image, RightEye, LeftEye):
     
     
     #use cv2 to detect the different contours in the binary image, some of these contours should be the eyes (if they are open)
-    _,contours,hierarchy = cv2.findContours(image_to_process, cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
+    contours,hierarchy = cv2.findContours(image_to_process, cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
     
     dist_left = []
     dist_right = []

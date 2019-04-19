@@ -30,6 +30,13 @@ from PyQt5 import QtGui
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QLabel, QPushButton, QDialog
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+
+
+
+import multiprocessing.util as util
+util.log_to_stderr(util.SUBDEBUG)
+
+
 """
 
 This window takes care of all the processing, it does it in a new thread so that 
@@ -44,7 +51,7 @@ def rot_estimation(ListofFiles,ExtraInfo):
     scale = 0.5
     
     #function that takes care of computing the angular rotation between frames in ListofFiles
-    
+
     #this is the list of files to be analized, 
     ListofFiles = ListofFiles
     
@@ -67,11 +74,12 @@ def rot_estimation(ListofFiles,ExtraInfo):
     Side = Side[0]
     angles = angles[0]
 
-    zero_pos = np.where(angles == 0)[0]
+    #zero_pos = np.where(angles == 0)[0]
 
-    angles_neg = angles[0:int(zero_pos[0])+1]
+    #angles_neg = angles[0:int(zero_pos[0])+1]
 
-    angles_pos = angles[int(zero_pos[0]):-1] 
+    #angles_pos = angles[int(zero_pos[0]):-1] 
+    
 #    nann=str(time.time())
 #    with open(os.path.join(foldername,nann+'.txt'), 'w') as f:
 #        for item in ListofFiles:
@@ -120,11 +128,12 @@ def rot_estimation(ListofFiles,ExtraInfo):
         cv2.fillConvexPoly(mask, RightROI, (255,255,255))
         mask = mask[:,0:center[0]]
         #find the rectangle that encloses the mask 
-        im, contours, hierarchy = cv2.findContours(mask, 1, 2)
+        #
+        contours, hierarchy = cv2.findContours(mask, 1, 2)
         cnt = contours[0]
         x,y,w,h = cv2.boundingRect(cnt)
         lims_x = [x, x+w]
-        lims_y = [w, w+h]
+        lims_y = [y, y+h]
     else:
 #        ROI = LeftROI
 #        ROI = [2*center[0],0]-ROI  #mirror the left ROI to the right 
@@ -145,12 +154,18 @@ def rot_estimation(ListofFiles,ExtraInfo):
         mask = mask[:,0:w_orig-center[0]]  #take left side
         
         #find the rectangle that encloses the mask 
-        im, contours, hierarchy = cv2.findContours(mask, 1, 2)
+        #im, contours, hierarchy = cv2.findContours(mask, 1, 2)
+        contours, hierarchy = cv2.findContours(mask, 1, 2)
         cnt = contours[0]
         x,y,w,h = cv2.boundingRect(cnt)
+
         lims_x = [x, x+w]
-        lims_y = [w, w+h]
-      
+        lims_y = [y, y+h]
+        
+#        print(LeftROI)
+#        cv2.namedWindow("hola")
+#        cv2.imshow("hola",mask)
+#        input("Press Enter to continue...")
 #    #print(Side)
 #    
 #    lims_x=[min(ROI[:,0])-10, max(ROI[:,0])+10]
@@ -233,8 +248,13 @@ def rot_estimation(ListofFiles,ExtraInfo):
             
 #            cv2.namedWindow("test")
 #            cv2.imshow("test",mask)
+
 #            cv2.namedWindow("test2")
 #            cv2.imshow("test2",old_temp)
+#            folder = r'G:\vid_test\temp_images'
+#            cv2.imwrite(os.path.join(folder,'orig.png' ),old_temp)
+#            print(lims_y[0],lims_y[1],lims_x[0],lims_x[1])
+
             
             if counter == 0:
                 #first run using all angles 
@@ -255,11 +275,14 @@ def rot_estimation(ListofFiles,ExtraInfo):
                     
 #                    cv2.namedWindow(str(index))
 #                    cv2.imshow(str(index),temp)
+#                    folder = r'G:\vid_test\temp_images'
+#                    cv2.imwrite(os.path.join(folder,str(angle)+'.png' ),temp)
     
                     #find the correlation between the previous frame and the rotate version of the current frame                                                     
                     correl = cv2.matchTemplate(old_small_image, cv2.resize(temp[lims_y[0]:lims_y[1],lims_x[0]:lims_x[1]],(0,0),fx=scale,fy=scale), cv2.TM_CCORR_NORMED)  
                     #store the results 
                     res[index,0] = correl
+
                     
                 #select the angle that provided the largest correlation     
                 select_val= angles[np.argmax(res)]
@@ -353,8 +376,10 @@ def rot_estimation(ListofFiles,ExtraInfo):
                     temp = np.zeros([h,w], np.uint8)     
                     cv2.bitwise_and(rotated,mask,temp) 
                     
-#                    cv2.namedWindow(str(index))
-#                    cv2.imshow(str(index),temp)
+                    #cv2.namedWindow(str(index))
+                    #cv2.imshow(str(index),temp)
+#                    folder = r'G:\vid_test\temp_images'
+#                    cv2.imwrite(os.path.join(folder,str(angle)+'.png' ),temp)
                    
     
                     #find the correlation between the previous frame and the rotate version of the current frame                                                     
@@ -372,18 +397,18 @@ def rot_estimation(ListofFiles,ExtraInfo):
                     
    
     
-    
-            if Side == 'Right':
-                location = os.path.join(r'G:\vid_test\corr\right',file[:-4]+'csv')
-                np.savetxt(location, np.c_[angles, res], delimiter=",")
-                #np.savetxt(location, np.c_[ang,res], delimiter=",")
-            else:
-                location = os.path.join(r'G:\vid_test\corr\left',file[:-4]+'csv')
-                np.savetxt(location, np.c_[angles, res], delimiter=",")
-                #np.savetxt(location, np.c_[ang,res], delimiter=",")                    
-                
+#    
+#            if Side == 'Right':
+#                location = os.path.join(r'G:\Pressure_Experiment\20181225\Animal 1\corr\right',file[:-5]+'-right.csv')
+#                np.savetxt(location, np.c_[angles, res], delimiter=",")
+#                #np.savetxt(location, np.c_[ang,res], delimiter=",")
+#            else:
+#                location = os.path.join(r'G:\Pressure_Experiment\20181225\Animal 1\corr\left',file[:-5]+'-left.csv')
+#                np.savetxt(location, np.c_[angles, res], delimiter=",")
+#                #np.savetxt(location, np.c_[ang,res], delimiter=",")                    
+                    
 
-    print(res)
+    #print(res)
 
     #return the angles 
     return results    
@@ -843,14 +868,16 @@ class FramesAnalysis(QObject):
 
             if self._resultsInfo._AnalizeResults == 'Both': #analize both sides of the face
                 
-
-                it_right = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
+                ZipRight = zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
-                                [self._threshold], [self._angles], ['Right'], [rotation_angle])),FilesforProcessing)
+                                [self._threshold], [self._angles], ['Right'], [rotation_angle])
+                it_right = pool.imap(partial(rot_estimation, ExtraInfo = ZipRight),FilesforProcessing)
+               
                 
-                it_left = pool.imap(partial(rot_estimation, ExtraInfo = zip([self._foldername], [self._FaceCenter], 
+                ZipLeft = zip([self._foldername], [self._FaceCenter], 
                                 [self._RightROI], [self._LeftROI],
-                                [self._threshold], [self._angles], ['Left'], [rotation_angle])),FilesforProcessing)
+                                [self._threshold], [self._angles], ['Left'], [rotation_angle])
+                it_left = pool.imap(partial(rot_estimation, ExtraInfo = ZipLeft ),FilesforProcessing)
                 
                 
                 res_right= []
@@ -1101,6 +1128,7 @@ class AnalysisWindow(QDialog):
             agents = self._Parallel._NumAgents
             if agents is not None:
                 div_number = int(np.ceil(len(self._selectedList)/agents))  #this tells in how many sub-list the original list can be divided
+            
             if div_number <= 1: #if div_number <=1 then parallel processing is not needed
                 agents = None
        
@@ -1116,8 +1144,10 @@ class AnalysisWindow(QDialog):
                 #This needs to be improved at some point so that it doesn't change the number of agents!!!
                 agents = int(np.ceil(len(self._selectedList)/div_number))
 
+            print(agents)
             #initianlize the Pool of processors
             self._Pool = Pool(processes=agents)
+            print(self._Pool)
             
         return 
             
@@ -1207,7 +1237,7 @@ class AnalysisWindow(QDialog):
         #if requested, then save data in a csv file
         #3/11/2018 -> changed self._ResultsInfo._InitFrame-1 to self._ResultsInfo._InitFrame, i don't know if that will work....
         time_vector = np.linspace(self._ResultsInfo._InitFrame, self._ResultsInfo._EndFrame-1, len(self._results))# np.arange(self._ResultsInfo._InitFrame-1,self._ResultsInfo._InitFrame+len(self.results),self._ResultsInfo._subSampling)
-        self._results = np.c_[time_vector*(1/Fs), self._results+self._init_cond]
+        self._results = np.c_[time_vector*(1/Fs), self._results+self._init_cond] 
     
         #we need to inform to the main program what frames have been processed and what frames haven't 
         #this will simplify presentation of results
@@ -1216,7 +1246,9 @@ class AnalysisWindow(QDialog):
             
         self.Processing = False
         #update progress bar one last time and ask user to close it 
-        self.UpdateProgressBar()     
+        self.UpdateProgressBar()  
+        
+        print(len(self._List), len(self._results[:,1]))
 
         
         return

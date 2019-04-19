@@ -709,7 +709,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     QtWidgets.QMessageBox.warning(self, 'Error','Incorrect File Type')
                     return
-                print(From_File._RightROI)    
+                
                 if From_File._FaceCenter is not None:
                     self._FaceCenter = From_File._FaceCenter
                     #print(self._FaceCenter)
@@ -919,7 +919,7 @@ class MainWindow(QtWidgets.QMainWindow):
    
     
     def nextFrame_function(self):
-               
+        #print(self._FrameIndex, len(self._FileList)-1,len(self._hasAngle) )    
         if self._FrameIndex < len(self._FileList)-1:
             self._FrameIndex += 1
             temp_image  = cv2.imread(os.path.join(self._Folder,self._FileList[self._FrameIndex]))
@@ -929,12 +929,15 @@ class MainWindow(QtWidgets.QMainWindow):
             img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
             
             #show the photo and angular displacements if avaliable
-            if self._hasAngle[self._FrameIndex] is not None:
-                self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
-                self.displayImage.setPhoto(img_show, self._sent_angle)                        
-            else:
-                #self._sent_angle = None
-                self.displayImage.setPhoto(img_show, self._sent_angle) 
+            try:
+                if self._hasAngle[self._FrameIndex] is not None:
+                    self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                    self.displayImage.setPhoto(img_show, self._sent_angle)                        
+                else:
+                    #self._sent_angle = None
+                    self.displayImage.setPhoto(img_show, self._sent_angle) 
+            except:
+                self.displayImage.setPhoto(img_show, self._sent_angle)
              
             
             self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))
@@ -977,13 +980,15 @@ class MainWindow(QtWidgets.QMainWindow):
                         
                         img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle)
                         
-                        #show the photo and angular displacements if avaliable
-                        if self._hasAngle[self._FrameIndex] is not None:
-                            self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
-                            self.displayImage.setPhoto(img_show, self._sent_angle)                        
-                        else:
-                            #self._sent_angle = None
-                            self.displayImage.setPhoto(img_show, self._sent_angle)       
+                        try:
+                            if self._hasAngle[self._FrameIndex] is not None:
+                                self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                                self.displayImage.setPhoto(img_show, self._sent_angle)                        
+                            else:
+                                #self._sent_angle = None
+                                self.displayImage.setPhoto(img_show, self._sent_angle) 
+                        except:
+                                self.displayImage.setPhoto(img_show, self._sent_angle)       
                     else:
                         pass
                 else:
@@ -994,12 +999,16 @@ class MainWindow(QtWidgets.QMainWindow):
                         
                     img_show = get_pixmap(self._current_Image, self._threshold, self._rotation_angle) 
                     #show the photo and angular displacements if avaliable
-                    if self._hasAngle[self._FrameIndex] is not None:
-                        self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
-                        self.displayImage.setPhoto(img_show, self._sent_angle)                        
-                    else:
-                        #self._sent_angle = None
-                        self.displayImage.setPhoto(img_show, self._sent_angle)      
+                    try:
+                        if self._hasAngle[self._FrameIndex] is not None:
+                            self._sent_angle = self._hasAngle[self._FrameIndex][1:3]
+                            self.displayImage.setPhoto(img_show, self._sent_angle)                        
+                        else:
+                            #self._sent_angle = None
+                            self.displayImage.setPhoto(img_show, self._sent_angle) 
+                    except:
+                            self.displayImage.setPhoto(img_show, self._sent_angle)       
+
 
                 self._framelabel.setText('Frame {a} of {b}'.format(a=self._FrameIndex+1, b=len(self._FileList)))  
                 self._slider.blockSignals(True)
@@ -1592,12 +1601,16 @@ class MainWindow(QtWidgets.QMainWindow):
             right = np.sum(self._results[1:,1]-self._results[1,1])
             left = np.sum(self._results[1:,2]-self._results[1,2])
             
-            max_r = max(self._results[:,1])
-            max_l = max(self._results[:,2])
+            right_whisk = self._results[:,1]-180
+            left_whisk = self._results[:,2]+180
+            time_frames = self._results[:,0]
+            
+            max_r = max(right_whisk)
+            max_l = max(left_whisk)
             max_max = max(max_r,max_l)
             lim_max = max_max+0.1*max_max
-            min_r = min(self._results[:,1])
-            min_l = min(self._results[:,2])
+            min_r = min(right_whisk)
+            min_l = min(left_whisk)
             min_min = min(min_r,min_l)
             lim_mim = min_min+0.1*min_min
             
@@ -1607,35 +1620,38 @@ class MainWindow(QtWidgets.QMainWindow):
                 #both sides
                 fig = plt.figure()
                 ax1 = fig.add_subplot(211)
-                ax1.plot(self._results[:,0], self._results[:,1])
+                ax1.plot(time_frames, right_whisk)
                 ax1.set_ylabel('Displacement (deg)')
                 ax1.set_title('Right Side')
                 ax1.set_ylim(-lim,lim)
                 #ax1.set_xticks([]) 
                 ax2 = fig.add_subplot(212)
-                ax2.plot(self._results[:,0],self._results[:,2])
+                ax2.plot( time_frames,left_whisk)
                 ax2.set_ylabel('Displacement (deg)')
                 ax2.set_xlabel('Time (s)')
                 ax2.set_title('Left Side')
                 ax2.set_ylim(-lim,lim)
+                fig.show()
                 
             elif right != 0 and left == 0 :
                 fig = plt.figure()
                 ax1 = fig.add_subplot(111)
-                ax1.plot(self._results[:,0], self._results[:,1])
+                ax1.plot( time_frames, left_whisk)
                 ax1.set_ylabel('Displacement (deg)')
                 ax1.set_title('Right Side')
                 ax1.set_xlabel('Time (s)')
                 ax1.set_ylim(-lim,lim)
+                fig.show()
                 
             elif right == 0 and left != 0 :
                 fig = plt.figure()
                 ax1 = fig.add_subplot(111)
-                ax1.plot(self._results[:,0], self._results[:,2])
+                ax1.plot( time_frames, left_whisk)
                 ax1.set_ylabel('Displacement (deg)')
                 ax1.set_title('Left Side')
                 ax1.set_xlabel('Time (s)')
                 ax1.set_ylim(-lim,lim)
+                fig.show()
                 
     def reset_function(self):
         #eliminate current results from memory and clean results from screen
